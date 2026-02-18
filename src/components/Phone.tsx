@@ -446,12 +446,16 @@ function SettingsApp({ rows }: { rows: SettingRow[] }) {
 }
 
 export function Phone() {
-  
+  const publicUrl = (p: string) => `${import.meta.env.BASE_URL}${p.replace(/^\/+/, "")}`;
+
   const [screen, setScreen] = useState<ScreenState>("off");
   const [now, setNow] = useState(() => new Date());
 
   
-  const DEFAULT_HOME_SRC = "/home.jpg";
+  const DEFAULT_HOME_SRC = publicUrl("home.jpg");
+  const DEFAULT_LOCK_SRC = publicUrl("lock.jpg");
+
+
   const [homeSrc, setHomeSrc] = useState<string>(DEFAULT_HOME_SRC);
 
   
@@ -844,7 +848,7 @@ export function Phone() {
 
             
             <img
-              src="/lock.jpg"
+              src={DEFAULT_LOCK_SRC}
               alt="lock"
               className={[
                 "absolute inset-0 w-full h-full object-cover transition-opacity duration-300",
