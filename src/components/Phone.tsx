@@ -928,9 +928,10 @@ export function Phone() {
             : "";
 
   return (
-    <div className="min-h-screen bg-zinc-100 grid place-items-center p-6">
+    <div className="min-h-[100dvh] bg-zinc-100 grid place-items-center p-6 overflow-hidden">
       {}
-      <div className="relative overflow-visible w-[min(451px,99vw)] aspect-[9.45/18.525] scale-[1.2] origin-center">
+      <div className="relative overflow-visible aspect-[9.45/18.525] origin-center w-[min(99vw,451px,calc((100dvh-48px)*9.45/18.525/1.2))]">
+
         {}
         <button
           type="button"
