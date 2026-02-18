@@ -264,7 +264,7 @@ function GalleryApp({
 
   const viewerAreaRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
-  const [dragging, setDragging] = useState(false);
+  const [setDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
 
   const clampPan = useCallback((x: number, y: number, z: number) => {
