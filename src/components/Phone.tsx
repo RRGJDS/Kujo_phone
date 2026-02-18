@@ -788,8 +788,8 @@ export function Phone() {
           className={[
             "absolute",
             "z-10",
-            "right-[-10px]",
-            "top-[140px]",
+            "right-[-7px]",
+            "top-[160px]",
             "w-[14px] h-[86px]",
             "rounded-[10px]",
             "border border-black/10",
@@ -919,7 +919,7 @@ export function Phone() {
                 screen === "off" || screen === "lock" ? "opacity-85" : "opacity-0 pointer-events-none"
               ].join(" ")}
             >
-              화면을 클릭
+              화면을 클릭하세요
             </div>
 
             
@@ -954,9 +954,9 @@ export function Phone() {
                 </button>
 
                 
-                <div className="absolute top-28 left-0 right-0 grid place-items-center gap-3">
+                <div className="absolute top-45 left-0 right-0 grid place-items-center gap-3 scale-[1.1]">
                   <div className={["text-xs text-white/90 h-5 transition-all", hint ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1"].join(" ")}>
-                    힌트: 2^10
+                    힌트: 夜
                   </div>
 
                   <div className={["flex gap-3", shake ? "animate-[shake_.35s_ease]" : ""].join(" ")}>
@@ -987,7 +987,7 @@ export function Phone() {
 
                     
                     <button
-                      className="h-14 rounded-full bg-white/10 border border-white/15 text-white text-xs font-extrabold active:scale-[.98]"
+                      className="h-14 rounded-full bg-white/10 border border-white/15 text-white text-xs font-extrabold active:scale-[.98]" style={{color: "rgb(248, 41, 41)"}}
                       onClick={openEmergency}
                     >
                       긴급
