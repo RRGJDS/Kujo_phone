@@ -264,7 +264,7 @@ function GalleryApp({
 
   const viewerAreaRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
-  const [setDragging] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
 
   const clampPan = useCallback((x: number, y: number, z: number) => {
@@ -526,7 +526,7 @@ function GalleryApp({
               onPointerCancel={endPan}
               style={{
                 touchAction: "none",
-                cursor: "inherit"
+                cursor: zoom > 1.01 ? (dragging ? "grabbing" : "grab") : "default"
               }}
             >
               {viewerSrc && (
@@ -538,7 +538,7 @@ function GalleryApp({
                     transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
                     transformOrigin: "center",
                     willChange: "transform",
-                    transition: "transform 90ms ease-out"
+                    transition: dragging ? "none" : "transform 90ms ease-out"
                   }}
                   draggable={false}
                   decoding="async"
