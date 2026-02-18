@@ -1,43 +1,9 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { MEMOS, type MemoItem } from "./memos";
 import { DIARIES, type DiaryItem } from "./diaries";
-import { SETTINGS, SettingsApp } from "./settings";
 import { EmergencyModal } from "./EmergencyModal";
 
-/**
- * ✅ Phone.tsx (갤러리 개선 + 효과음 강화 + Emergency 재연결 유지)
- *
- * 이번 반영 사항
- * 1) 갤러리:
- *    - 앨범(그리드): 메모의 back 버튼 스타일(‹)로 홈 이동
- *    - 사진(상세): "< 사진" 형태의 back 버튼(메모 스타일) + 드래그 이동/줌(레이아웃 찌그러짐 방지)
- * 2) "무언가를 클릭할 때마다" 효과음:
- *    - 폰 화면 내 버튼 클릭은 onPointerDownCapture로 자동 효과음
- *    - 화면 탭(OFF/LOCK ->) / 전원 버튼 등 버튼이 아닌 동작도 효과음
- * 3) 사진 상세보기: 확대(큰 화면) + 열기/닫기 부드러운 애니메이션
- * 4) 갤러리 자동 수집(가능):
- *    - ✅ 추천: src/assets/gallery 폴더에 넣으면 자동 수집(import.meta.glob)
- *    - (대안) public/gallery는 브라우저가 폴더 목록을 읽을 수 없어서 "자동"이 불가 → 빌드 단계에서 목록 생성 필요
- *
- * 파일 위치(권장):
- * - src/components/Phone.tsx
- * - src/components/memos.ts
- * - src/components/diaries.ts
- * - src/components/EmergencyModal.tsx
- *
- * 이미지:
- * - public/lock.jpg
- * - public/home.jpg
- * - public/apps/app1.png ~ app4.png
- *
- * 갤러리 자동 수집(추천):
- * - src/assets/gallery/ 에 .png/.jpg/.jpeg/.webp 파일 넣기
- */
 
-// --------------------------------
-// ✅ (추천) Vite 자동 갤러리 수집: src/assets/gallery/*
-// - 여기에 파일만 넣으면 코드 수정 없이 자동으로 갤러리에 뜹니다.
-// --------------------------------
 const AUTO_GALLERY_ENTRIES = import.meta.glob("../assets/gallery/*.{png,jpg,jpeg,webp}", {
   eager: true,
   import: "default"
@@ -47,20 +13,15 @@ const AUTO_GALLERY_URLS = Object.entries(AUTO_GALLERY_ENTRIES)
   .sort((a, b) => a[0].localeCompare(b[0]))
   .map(([, url]) => url);
 
-// --------------------------------
-// (대안) public/gallery를 쓰고 싶다면:
-// - 브라우저는 폴더 파일 목록을 "자동으로" 읽을 수 없음(보안/환경상 이유)
-// - 그래서 여기 배열에 파일명을 수동으로 적어야 합니다.
-// --------------------------------
+
 const PUBLIC_GALLERY_FILENAMES: string[] = [
-  // "a.jpg",
-  // "b.png",
+  
 ];
 
-// 화면 상태
+
 type ScreenState = "off" | "lock" | "passcode" | "home";
 
-// 앱
+
 type AppId = "gallery" | "memo" | "diary" | "settings";
 type HomeApp = { id: AppId; label: string; iconSrc: string };
 
@@ -71,33 +32,7 @@ const HOME_APPS: HomeApp[] = [
   { id: "settings", label: "설정", iconSrc: "/apps/app4.png" }
 ];
 
-// --------------------------------
-// UI 크기 조절(여기만 바꾸면 1곳에서 계속 조절 가능)
-// - 1.05 = 현재 기준 5% 확대
-// --------------------------------
-const UI_SCALE = 1.1025;
 
-// 홈 화면 앱 아이콘/라벨 크기
-const HOME_ICON_PX = Math.round(64 * UI_SCALE);      // 기본 64px(=w-16)
-const HOME_LABEL_PX = Math.round(12 * UI_SCALE);     // 기본 10px
-
-// 앱 헤더 타이틀/서브텍스트(앨범, 메모 등)
-const APP_TITLE_PX = Math.round(16 * UI_SCALE);      // text-base(≈16px)
-const APP_SUB_PX = Math.round(12 * UI_SCALE);        // text-xs(≈12px)
-
-// --------------------------------
-// 마우스 커서(32x32)
-// - public 폴더에 아래 파일명을 맞춰 넣으면 바로 적용됨
-//   예) public/cursor-default.png, public/cursor-down.png
-// - 핫스팟(클릭 기준점)은 16,16(가운데)로 잡아둠. 필요하면 숫자만 바꿔.
-// --------------------------------
-const CURSOR_DEFAULT_SRC = `${import.meta.env.BASE_URL}cursor-default.png`;
-const CURSOR_DOWN_SRC = `${import.meta.env.BASE_URL}cursor-down.png`;
-const CURSOR_HOTSPOT_X = 16;
-const CURSOR_HOTSPOT_Y = 16;
-
-
-// 시간/날짜 (PC 로컬)
 function fmtTime(d: Date) {
   return new Intl.DateTimeFormat("ko-KR", {
     hour: "2-digit",
@@ -113,9 +48,9 @@ function fmtDate(d: Date) {
   }).format(d);
 }
 
-// PIN 검증
+
 const TARGET_SHA256_HEX =
-  "e39eef82f61b21e2e7f762fcc4307358f165757f2e77ec855d6992f7e0191932"; // sha256("1024")
+  "e39eef82f61b21e2e7f762fcc4307358f165757f2e77ec855d6992f7e0191932"; 
 
 function toHex(buffer: ArrayBuffer) {
   const bytes = new Uint8Array(buffer);
@@ -135,7 +70,7 @@ async function verifyPin(pin4: string) {
   return hash === TARGET_SHA256_HEX;
 }
 
-// 상태바 아이콘(신호/와이파이)
+
 function SignalIcon() {
   return (
     <div className="flex items-end gap-[2px]" aria-label="signal">
@@ -157,10 +92,7 @@ function WifiIcon() {
   );
 }
 
-// --------------------------------
-// 공통: 앱 모달(아래→위 / 위→아래)
-// - hideHeader=true면 상단 헤더를 숨김(갤러리는 자체 헤더 사용)
-// --------------------------------
+
 function AppModal({
   open,
   title,
@@ -247,11 +179,11 @@ function AppModal({
               >
                 ‹
               </button>
-              <div className="font-extrabold" style={{ fontSize: APP_TITLE_PX }}>{title}</div>
+              <div className="font-extrabold">{title}</div>
             </div>
           )}
 
-          <div className={hideHeader ? "h-full overflow-hidden" : "h-[calc(100%-48px)] overflow-auto"}>
+          <div className={hideHeader ? "h-full overflow-auto" : "h-[calc(100%-48px)] overflow-auto"}>
             {children}
           </div>
         </div>
@@ -259,275 +191,72 @@ function AppModal({
     </div>
   );
 }
-
-// --------------------------------
-// 갤러리 앱
-// 요구사항 반영
-// 1) 갤러리 열기/스크롤 렉 최적화(배치 렌더 + lazy/async decode + content-visibility)
-// 2) 확대/축소 시 이중 스크롤/찌그러짐 방지(단일 스크롤 + overflow 잠금 + transform 기반 zoom)
-// 3) 메인 하단 "배경화면 초기화" 버튼 복원
-// 4) 확대 사진 닫기(X) 버튼: 한 칸 아래 우측 상단
-// 5) 메인 뒤로가기: 좌측 상단 "<"
-// 6) 터치음 중복 방지: 갤러리 내부에서 별도 onSound 호출 제거(상위 캡처에서 1회만 재생)
-// --------------------------------
-
-// 썸네일 그리드(메모이즈)
-const GalleryThumbGrid = memo(function GalleryThumbGrid({
-  images,
-  onOpen
-}: {
-  images: string[];
-  onOpen: (src: string) => void;
-}) {
-  return (
-    <div className="px-2 py-2">
-      <div className="grid grid-cols-3 gap-[2px] bg-black/15 p-[2px]">
-        {images.map((src) => (
-          <button
-            key={src}
-            type="button"
-            className="aspect-square bg-white overflow-hidden"
-            style={{ ...( { contentVisibility: "auto", containIntrinsicSize: "120px 120px" } as any ) }}
-            onClick={() => onOpen(src)}
-            title="사진 보기"
-          >
-            <img
-              src={src}
-              className="w-full h-full object-cover"
-              alt="thumb"
-              loading="lazy"
-              decoding="async"
-              draggable={false}
-            />
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-});
-
 function GalleryApp({
   images,
   onCloseApp,
   onSetWallpaper,
-  onResetWallpaper
+  onResetWallpaper,
+  onSound
 }: {
   images: string[];
   onCloseApp: () => void;
   onSetWallpaper: (src: string) => void;
   onResetWallpaper: () => void;
+  onSound: () => void;
 }) {
+  
   const DURATION = 260;
-
-  // 사진 상세 보기(애니메이션용 상태)
   const [viewerMounted, setViewerMounted] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerSrc, setViewerSrc] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  // 확대/축소는 transform으로만 처리(레이아웃 변화로 인한 "찌그러짐" 방지)
-  const [zoom, setZoom] = useState(1);
-  // ✅ 드래그 이동(줌 상태에서만)
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const panRef = useRef(pan);
-  useEffect(() => {
-    panRef.current = pan;
-  }, [pan]);
-
-  const viewerAreaRef = useRef<HTMLDivElement | null>(null);
-  const draggingRef = useRef(false);
-  const [dragging, setDragging] = useState(false);
-  const dragStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
-
-  const clampPan = useCallback((x: number, y: number, z: number) => {
-    const el = viewerAreaRef.current;
-    if (!el) return { x, y };
-    const w = el.clientWidth;
-    const h = el.clientHeight;
-
-    // object-contain 기준 완벽한 한계 계산은 복잡하므로,
-    // "화면 크기 * (줌-1)/2"로 자연스러운 범위로 클램프합니다.
-    const maxX = Math.max(0, (w * (z - 1)) / 2);
-    const maxY = Math.max(0, (h * (z - 1)) / 2);
-
-    return {
-      x: Math.min(maxX, Math.max(-maxX, x)),
-      y: Math.min(maxY, Math.max(-maxY, y))
-    };
-  }, []);
-
-  const onPointerDownPan = useCallback((e: any) => {
-    if (zoom <= 1.01) return;
-    draggingRef.current = true;
-    setDragging(true);
-    dragStartRef.current = {
-      x: e.clientX,
-      y: e.clientY,
-      panX: panRef.current.x,
-      panY: panRef.current.y
-    };
-    try {
-      e.currentTarget?.setPointerCapture?.(e.pointerId);
-    } catch {}
-    e.preventDefault();
-    e.stopPropagation();
-  }, [zoom]);
-
-  const onPointerMovePan = useCallback((e: any) => {
-    if (!draggingRef.current) return;
-    const dx = e.clientX - dragStartRef.current.x;
-    const dy = e.clientY - dragStartRef.current.y;
-
-    const next = clampPan(dragStartRef.current.panX + dx, dragStartRef.current.panY + dy, zoom);
-    setPan(next);
-
-    e.preventDefault();
-    e.stopPropagation();
-  }, [clampPan, zoom]);
-
-  const endPan = useCallback((e: any) => {
-    if (!draggingRef.current) return;
-    draggingRef.current = false;
-    setDragging(false);
-    try {
-      e.currentTarget?.releasePointerCapture?.(e.pointerId);
-    } catch {}
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
-
-
-  // ✅ 배치 렌더: 열 때 렉 감소
-  const BATCH = 48;
-  const [limit, setLimit] = useState(() => Math.min(images.length, BATCH));
-  useEffect(() => {
-    setLimit(Math.min(images.length, BATCH));
-  }, [images.length]);
-
-  const listRef = useRef<HTMLDivElement | null>(null);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!sentinelRef.current) return;
-    const rootEl = listRef.current;
-
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const hit = entries.some((e) => e.isIntersecting);
-        if (!hit) return;
-        setLimit((prev) => (prev >= images.length ? prev : Math.min(images.length, prev + BATCH)));
-      },
-      {
-        root: rootEl,
-        rootMargin: "600px 0px",
-        threshold: 0.01
-      }
-    );
-
-    obs.observe(sentinelRef.current);
-    return () => obs.disconnect();
-  }, [images.length]);
-
-  const visibleImages = useMemo(() => images.slice(0, limit), [images, limit]);
-
-  const openViewer = useCallback((src: string) => {
+  const openViewer = (src: string) => {
+    onSound();
     setViewerSrc(src);
-    setSaved(false);
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-
     setViewerMounted(true);
     setViewerVisible(false);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => setViewerVisible(true));
     });
-  }, []);
+  };
 
-  const closeViewer = useCallback(() => {
+  const closeViewer = () => {
+    onSound();
     setViewerVisible(false);
     window.setTimeout(() => {
       setViewerMounted(false);
       setViewerSrc(null);
       setSaved(false);
-      setZoom(1);
-      setPan({ x: 0, y: 0 });
     }, DURATION);
-  }, []);
-
-  const onWheelZoom = useCallback((e: any) => {
-    // ✅ 뷰어에서 휠 이벤트가 바깥 스크롤로 전파되는 것을 차단(이중 스크롤 방지)
-    e.preventDefault();
-    e.stopPropagation();
-
-    const delta = -e.deltaY * 0.0015; // 감도
-    setZoom((z) => {
-      const next = Math.min(3, Math.max(1, z + delta));
-      const fixed = Number(next.toFixed(3));
-
-      // 줌 변경 시 현재 pan도 자연스럽게 클램프
-      setPan((p) => clampPan(p.x, p.y, fixed));
-
-      // 거의 1이면 완전히 1로 스냅 + pan 초기화
-      if (fixed <= 1.01) {
-        setPan({ x: 0, y: 0 });
-        return 1;
-      }
-
-      return fixed;
-    });
-  }, [clampPan]);
-
-  const onDoubleZoom = useCallback(() => {
-    setZoom((z) => {
-      const next = z <= 1.01 ? 2.2 : 1;
-
-      if (next <= 1.01) {
-        setPan({ x: 0, y: 0 });
-        return 1;
-      }
-
-      setPan((p) => clampPan(p.x, p.y, next));
-      return next;
-    });
-  }, [clampPan]);
+  };
 
   const countText = `이미지 ${images.length}개`;
 
   return (
-    <div className="relative h-full bg-white flex flex-col">
-      {/* ✅ 메인 상단바: 좌측 "<" 뒤로가기 */}
-      <div className="h-14 px-4 flex items-center gap-2 border-b border-black/10 shrink-0">
-        <button
-          type="button"
-          className="w-8 h-8 rounded-xl grid place-items-center text-[22px] leading-none active:scale-[.99]"
-          onClick={onCloseApp}
-          aria-label="back-gallery"
-        >
-          ‹
-        </button>
-
-        <div className="min-w-0">
-          <div className="font-extrabold text-black" style={{ fontSize: APP_TITLE_PX }}>앨범</div>
-          <div className="font-semibold text-black/45" style={{ fontSize: APP_SUB_PX }}>{countText}</div>
+    <div className="relative h-full bg-white">
+      
+      <div className="h-14 px-4 flex items-center justify-between border-b border-black/10">
+        <div>
+          <div className="text-base font-extrabold">앨범</div>
+          <div className="text-xs font-semibold text-black/45">{countText}</div>
         </div>
 
-        <div className="flex-1" />
+        
+        <button
+          className="w-8 h-8 rounded-xl border border-black/10 bg-black/5 font-black"
+          onClick={() => {
+            onSound();
+            onCloseApp();
+          }}
+          aria-label="close-gallery"
+        >
+          ×
+        </button>
       </div>
 
-      {/* ✅ 그리드: 뷰어 열려있을 때 스크롤 잠금(이중 스크롤 방지) */}
-      <div
-        ref={listRef}
-        className={[
-          "flex-1",
-          viewerMounted ? "overflow-hidden" : "overflow-y-scroll",
-          "bg-white"
-        ].join(" ")}
-        style={{
-          overscrollBehavior: "contain",
-          WebkitOverflowScrolling: "touch",
-          ...( { scrollbarGutter: "stable" } as any )
-        }}
-      >
+      
+      <div className="h-[calc(100%-56px)] overflow-auto">
         {images.length === 0 ? (
           <div className="p-4">
             <div className="text-xs text-black/55 p-3 rounded-xl border border-black/10 bg-black/[0.03]">
@@ -543,27 +272,28 @@ function GalleryApp({
             </div>
           </div>
         ) : (
-          <>
-            <GalleryThumbGrid images={visibleImages} onOpen={openViewer} />
-            <div ref={sentinelRef} className="h-10" />
-          </>
+          <div className="px-2 py-2">
+            
+            <div className="grid grid-cols-3 gap-[2px] bg-black/15 p-[2px]">
+              {images.map((src) => (
+                <button
+                  key={src}
+                  className="aspect-square bg-white overflow-hidden"
+                  onClick={() => openViewer(src)}
+                  title="사진 보기"
+                >
+                  <img src={src} className="w-full h-full object-cover" alt="thumb" />
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
-      {/* ✅ 메인 하단: 배경화면 초기화 버튼 */}
-      <div className="shrink-0 p-4 border-t border-black/10 bg-white">
-        <button
-          type="button"
-          className="w-full h-11 rounded-2xl bg-black/5 text-black font-extrabold active:scale-[.99]"
-          onClick={onResetWallpaper}
-        >
-          배경화면 초기화
-        </button>
-      </div>
-
-      {/* ✅ 사진 상세 보기 오버레이 */}
+      
       {viewerMounted && (
-        <div className="absolute inset-0 z-20 overflow-hidden" style={{ overscrollBehavior: "none" }}>
+        <div className="absolute inset-0 z-20">
+          
           <div
             className={[
               "absolute inset-0 bg-white",
@@ -572,64 +302,46 @@ function GalleryApp({
             ].join(" ")}
           />
 
+          
           <div
             className={[
-              "absolute inset-0 flex flex-col",
+              "absolute inset-0",
               "transition-all duration-300 ease-out",
               viewerVisible ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-6 scale-[0.98]"
             ].join(" ")}
           >
-            <div className="h-12 flex items-center gap-2 px-4 border-b border-black/10 bg-white shrink-0">
+            
+            <div className="h-14 px-4 flex items-center justify-between border-b border-black/10 bg-white">
+              <div className="text-base font-extrabold">사진</div>
+
               <button
-                type="button"
-                className="w-8 h-8 rounded-xl grid place-items-center text-[22px] leading-none active:scale-[.99]"
+                className="w-8 h-8 rounded-xl border border-black/10 bg-black/5 font-black"
                 onClick={closeViewer}
-                aria-label="back-photo"
+                aria-label="close-photo"
               >
-                ‹
+                ×
               </button>
-              <div className="font-extrabold text-black" style={{ fontSize: APP_TITLE_PX }}>앨범</div>
-              <div className="flex-1" />
             </div>
 
-            {/* 사진 영역: overflow-hidden + touchAction none */}
-            <div
-              ref={viewerAreaRef}
-              className="relative flex-1 overflow-hidden bg-white"
-              onWheel={onWheelZoom}
-              onDoubleClick={onDoubleZoom}
-              onPointerDown={onPointerDownPan}
-              onPointerMove={onPointerMovePan}
-              onPointerUp={endPan}
-              onPointerCancel={endPan}
-              style={{
-                touchAction: "none",
-                cursor: "inherit"
-              }}
-            >
-              {viewerSrc && (
-                <img
-                  src={viewerSrc}
-                  alt="selected"
-                  className="absolute inset-0 w-full h-full object-contain select-none"
-                  style={{
-                    transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
-                    transformOrigin: "center",
-                    willChange: "transform",
-                    transition: "transform 90ms ease-out"
-                  }}
-                  draggable={false}
-                  decoding="async"
-                />
-              )}
+            
+            <div className="absolute top-14 bottom-20 left-0 right-0 p-0 bg-white">
+              <img
+                src={viewerSrc ?? ""}
+                alt="selected"
+                className={[
+                  "w-full h-full object-contain",
+                  "transition-transform duration-300",
+                  viewerVisible ? "scale-[1.04]" : "scale-[1.01]"
+                ].join(" ")}
+              />
             </div>
 
-            {/* 하단 버튼 */}
-            <div className="shrink-0 p-4 border-t border-black/10 bg-white">
+            
+            <div className="absolute left-0 right-0 bottom-0 p-4 border-t border-black/10 bg-white">
               <button
-                type="button"
                 className="w-full h-11 rounded-2xl bg-black text-white font-extrabold active:scale-[.99]"
                 onClick={() => {
+                  onSound();
                   if (!viewerSrc) return;
                   onSetWallpaper(viewerSrc);
                   setSaved(true);
@@ -639,12 +351,18 @@ function GalleryApp({
                 배경화면 설정
               </button>
 
+              <button
+                className="mt-2 w-full h-11 rounded-2xl bg-black/5 text-black font-extrabold active:scale-[.99]"
+                onClick={() => {
+                  onSound();
+                  onResetWallpaper();
+                }}
+              >
+                초기화(기본 배경으로)
+              </button>
+
               <div className={["mt-2 text-center text-[11px] transition-opacity", saved ? "opacity-80" : "opacity-0"].join(" ")}>
                 배경화면으로 설정되었습니다.
-              </div>
-
-              <div className="mt-2 text-center text-[11px] text-black/40">
-                확대/축소: 마우스 휠 · 빠른 확대: 더블클릭 · 이동: 드래그
               </div>
             </div>
           </div>
@@ -654,7 +372,7 @@ function GalleryApp({
   );
 }
 
-// 메모(2열)
+
 function MemoApp({ memos }: { memos: MemoItem[] }) {
   return (
     <div className="p-4">
@@ -673,18 +391,17 @@ function MemoApp({ memos }: { memos: MemoItem[] }) {
   );
 }
 
-// 일기(클릭 시 외부 링크)
-// - 효과음은 상위(onPointerDownCapture)에서 1회 재생되도록 내부에서 별도 재생하지 않음(중복 방지)
-function DiaryApp({ diaries }: { diaries: DiaryItem[] }) {
+
+function DiaryApp({ diaries, onSound }: { diaries: DiaryItem[]; onSound: () => void }) {
   return (
     <div className="p-4">
       <div className="space-y-3">
         {diaries.map((d) => (
           <button
             key={d.id}
-            type="button"
             className="w-full text-left rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-[0_10px_25px_rgba(0,0,0,.08)] active:scale-[.99]"
             onClick={() => {
+              onSound();
               window.open(d.url, "_blank", "noopener,noreferrer");
             }}
             title="클릭하면 링크로 이동"
@@ -699,25 +416,51 @@ function DiaryApp({ diaries }: { diaries: DiaryItem[] }) {
   );
 }
 
-/* =========================================================
- *  Phone
- * ========================================================= */
+
+type SettingRow = { key: string; value: string };
+
+const SETTINGS: SettingRow[] = [
+  { key: "이름", value: "기환석" },
+  { key: "나이", value: "17세" },
+  { key: "생년월일", value: "1월 12일" },
+  { key: "신장", value: "184cm" },
+  { key: "혈액형", value: "O형" },
+  { key: "전화번호", value: "010-712X-XXXX" }
+];
+
+function SettingsApp({ rows }: { rows: SettingRow[] }) {
+  return (
+    <div className="bg-[#f1f2f5] h-full">
+      <div className="h-12 bg-white" />
+      <div className="bg-white">
+        {rows.map((r) => (
+          <div key={r.key} className="flex items-center justify-between px-4 py-3 border-t border-black/5 text-sm">
+            <div className="text-black/80">{r.key}</div>
+            <div className="text-black/45">{r.value}</div>
+          </div>
+        ))}
+      </div>
+      <div className="text-center text-xs text-black/25 py-6">2026년 기준</div>
+    </div>
+  );
+}
+
 export function Phone() {
-  // 단계 상태
+  
   const [screen, setScreen] = useState<ScreenState>("off");
   const [now, setNow] = useState(() => new Date());
 
-  // 홈 배경(갤러리에서 변경 가능)
+  
   const DEFAULT_HOME_SRC = "/home.jpg";
   const [homeSrc, setHomeSrc] = useState<string>(DEFAULT_HOME_SRC);
 
-  // 자동 갤러리(추천) → 없으면 public/gallery 수동 목록 사용
+  
   const galleryUrls = useMemo(() => {
     if (AUTO_GALLERY_URLS.length) return AUTO_GALLERY_URLS;
     return PUBLIC_GALLERY_FILENAMES.map((fn) => `/gallery/${fn}`);
   }, []);
 
-  // PIN 입력
+  
   const [pin, setPin] = useState("");
   const pinRef = useRef(pin);
   useEffect(() => {
@@ -733,21 +476,18 @@ export function Phone() {
   const [hint, setHint] = useState(false);
   const [shake, setShake] = useState(false);
 
-  // 긴급 연락처
+  
   const [emergencyOpen, setEmergencyOpen] = useState(false);
   const emergencyOpenRef = useRef(emergencyOpen);
   useEffect(() => {
     emergencyOpenRef.current = emergencyOpen;
   }, [emergencyOpen]);
 
-  // 전원 버튼
+  
   const [powerPressed, setPowerPressed] = useState(false);
   const resumeAfterUnlockRef = useRef<ScreenState>("home");
 
-  // 마우스 커서(기본/클릭)
-  const [cursorDown, setCursorDown] = useState(false);
-
-  // 앱 모달
+  
   const [appOpen, setAppOpen] = useState(false);
   const [appId, setAppId] = useState<AppId | null>(null);
   const appOpenRef = useRef(appOpen);
@@ -755,21 +495,14 @@ export function Phone() {
     appOpenRef.current = appOpen;
   }, [appOpen]);
 
-  // 잠금화면 큰 시간/날짜 외곽선(잠금화면에만)
+  
   const outlineStyle = {
     textShadow:
       "0 1px 0 #000, 0 -1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, " +
       "1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000"
   } as const;
 
-
-  // 홈 앱 라벨(아이콘 아래 텍스트): 흰색 + 얇은 검정 외곽선(배경과 분리)
-  const appLabelStyle = {
-    textShadow:
-      "0 1px 0 rgba(0,0,0,.75), 0 -1px 0 rgba(0,0,0,.75), 1px 0 0 rgba(0,0,0,.75), -1px 0 0 rgba(0,0,0,.75)"
-  } as const;
-
-  // 클릭음(WebAudio)
+  
   const audioRef = useRef<{ ctx: AudioContext; master: GainNode } | null>(null);
 
   function ensureAudio() {
@@ -777,7 +510,7 @@ export function Phone() {
       const AC = window.AudioContext || (window as any).webkitAudioContext;
       const ctx: AudioContext = new AC();
       const master = ctx.createGain();
-      master.gain.value = 0.30;
+      master.gain.value = 0.18;
       master.connect(ctx.destination);
       audioRef.current = { ctx, master };
     }
@@ -795,7 +528,7 @@ export function Phone() {
       osc.frequency.setValueAtTime(1200, ctx.currentTime);
 
       g.gain.setValueAtTime(0.0001, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.004);
       g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.03);
 
       osc.connect(g);
@@ -804,39 +537,28 @@ export function Phone() {
       osc.start();
       osc.stop(ctx.currentTime + 0.035);
     } catch {
-      // ignore
+      
     }
   }
 
-  // ✅ 효과음 중복 방지: pointerdown/click 등 연속 이벤트에서 1회만 재생되도록 게이트
-  const soundLastAtRef = useRef(0);
+  
+  const soundGateRef = useRef(false);
   function soundOnce() {
-    const t = performance.now();
-    if (t - soundLastAtRef.current < 160) return;
-    soundLastAtRef.current = t;
+    if (soundGateRef.current) return;
+    soundGateRef.current = true;
     playClickSound();
+    requestAnimationFrame(() => {
+      soundGateRef.current = false;
+    });
   }
 
-  // 커서 클릭 상태: pointerup이 화면 밖에서 발생해도 복구되도록 window에 바인딩
-  useEffect(() => {
-    const up = () => setCursorDown(false);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", up);
-    window.addEventListener("blur", up);
-    return () => {
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", up);
-      window.removeEventListener("blur", up);
-    };
-  }, []);
-
-  // 시간 갱신
+  
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(id);
   }, []);
 
-  // 뒤로가기(popstate)
+  
   const screenRef = useRef(screen);
   useEffect(() => {
     screenRef.current = screen;
@@ -848,20 +570,20 @@ export function Phone() {
     const onPop = (e: PopStateEvent) => {
       const layer = e.state?.layer ?? "base";
 
-      // emergency 닫기: emergency -> passcode
+      
       if (layer === "passcode" && emergencyOpenRef.current) {
         setEmergencyOpen(false);
         setScreen("passcode");
         return;
       }
 
-      // 앱 닫기: app -> base
+      
       if (layer === "base" && appOpenRef.current) {
         setAppOpen(false);
         return;
       }
 
-      // passcode 닫기: passcode -> base
+      
       if (layer === "base" && screenRef.current === "passcode") {
         setEmergencyOpen(false);
         setPinSafe("");
@@ -873,13 +595,13 @@ export function Phone() {
 
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, []);
 
-  // 점(4칸)
+  
   const dots = useMemo(() => [0, 1, 2, 3].map((i) => i < pin.length), [pin]);
 
-  // 화면 클릭: OFF -> LOCK -> PASSCODE
+  
   function onScreenClick() {
     soundOnce();
 
@@ -887,8 +609,9 @@ export function Phone() {
     if (screen === "lock") return openPasscode();
   }
 
-  // PASSCODE 열기/닫기
+  
   function openPasscode() {
+    soundOnce();
     setPinSafe("");
     setHint(false);
     setEmergencyOpen(false);
@@ -896,20 +619,24 @@ export function Phone() {
     history.pushState({ layer: "passcode" }, "");
   }
   function closePasscode() {
+    soundOnce();
     history.back();
   }
 
-  // 긴급 열기/닫기
+  
   function openEmergency() {
+    soundOnce();
     setEmergencyOpen(true);
     history.pushState({ layer: "emergency" }, "");
   }
   function closeEmergency() {
+    soundOnce();
     history.back();
   }
 
-  // PIN 입력
+  
   async function appendDigit(d: string) {
+    soundOnce();
     if (verifyingRef.current) return;
 
     const prev = pinRef.current;
@@ -940,6 +667,7 @@ export function Phone() {
   }
 
   function deleteDigit() {
+    soundOnce();
     if (verifyingRef.current) return;
 
     const prev = pinRef.current;
@@ -947,7 +675,7 @@ export function Phone() {
     setPinSafe(prev.slice(0, -1));
   }
 
-  // 키보드(ESC: emergency면 닫고, 아니면 passcode 닫기)
+  
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (screenRef.current !== "passcode") return;
@@ -962,10 +690,10 @@ export function Phone() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    
   }, []);
 
-  // 전원 버튼
+  
   function pressPowerButton() {
     soundOnce();
     setPowerPressed(true);
@@ -992,19 +720,21 @@ export function Phone() {
     }
   }
 
-  // 앱 열기/닫기 (히스토리)
+  
   function openApp(id: AppId) {
+    soundOnce();
     setAppId(id);
     setAppOpen(true);
     history.pushState({ layer: "app", app: id }, "");
   }
   function closeAppByBack() {
+    soundOnce();
     history.back();
   }
 
   const clearAppId = () => setAppId(null);
 
-  // 앱 내용
+  
   function renderApp() {
     if (!appId) return null;
 
@@ -1015,12 +745,13 @@ export function Phone() {
           onCloseApp={closeAppByBack}
           onSetWallpaper={(src) => setHomeSrc(src)}
           onResetWallpaper={() => setHomeSrc(DEFAULT_HOME_SRC)}
+          onSound={soundOnce}
         />
       );
     }
 
     if (appId === "memo") return <MemoApp memos={MEMOS} />;
-    if (appId === "diary") return <DiaryApp diaries={DIARIES} />;
+    if (appId === "diary") return <DiaryApp diaries={DIARIES} onSound={soundOnce} />;
     if (appId === "settings") return <SettingsApp rows={SETTINGS} />;
 
     return null;
@@ -1037,14 +768,12 @@ export function Phone() {
             ? "설정"
             : "";
 
-  // ---------------------------------------------------------
-  // JSX (폰 프레임/색/위치: 기존 유지)
-  // ---------------------------------------------------------
+
   return (
     <div className="min-h-screen bg-zinc-100 grid place-items-center p-6">
-      {/* wrapper: 전원 버튼을 '폰 뒤'로 보이게 하기 위해 프레임과 형제 구조 */}
-      <div className="relative overflow-visible w-[min(451px,99vw)] aspect-[9.45/18.525] scale-[1.2] origin-center">
-        {/* 전원 버튼(뒤쪽) */}
+      
+      <div className="relative overflow-visible w-[min(390px,86vw)] aspect-[9/19.5] scale-[1.25] origin-center">
+        
         <button
           type="button"
           aria-label="power"
@@ -1055,8 +784,8 @@ export function Phone() {
           className={[
             "absolute",
             "z-10",
-            "right-[-7px]",
-            "top-[160px]",
+            "right-[-10px]",
+            "top-[140px]",
             "w-[14px] h-[86px]",
             "rounded-[10px]",
             "border border-black/10",
@@ -1071,33 +800,24 @@ export function Phone() {
           }}
         />
 
-        {/* 프레임(폰 본체) - 기존 디자인 유지 */}
+        
         <div
           className="relative z-20 w-full h-full rounded-[34px] shadow-[0_30px_80px_rgba(0,0,0,.35)] p-[14px]"
           style={{
             background: "linear-gradient(180deg, rgb(186,216,167) 0%, rgb(122,195,196) 100%)"
           }}
         >
-          {/* 폰 화면 */}
+          
           <div
-            className="relative w-full h-full rounded-[24px] overflow-hidden bg-black select-none customCursor"
+            className="relative w-full h-full rounded-[24px] overflow-hidden bg-black cursor-pointer select-none"
             onClick={onScreenClick}
-            style={{
-              fontSize: `${16 * UI_SCALE}px`,
-              cursor: cursorDown
-                ? `url(${CURSOR_DOWN_SRC}) ${CURSOR_HOTSPOT_X} ${CURSOR_HOTSPOT_Y}, auto`
-                : `url(${CURSOR_DEFAULT_SRC}) ${CURSOR_HOTSPOT_X} ${CURSOR_HOTSPOT_Y}, auto`
-            }}
-            // ✅ 버튼이면 자동 효과음(원하는 "전부 효과음"에 가장 가까움)
+            
             onPointerDownCapture={(e) => {
-              setCursorDown(true);
               const el = e.target as HTMLElement;
               if (el.closest("button")) soundOnce();
             }}
-            onPointerUpCapture={() => setCursorDown(false)}
-            onPointerCancelCapture={() => setCursorDown(false)}
           >
-            {/* 상태바 */}
+            
             {screen !== "off" && (
               <div className="absolute top-0 left-0 right-0 z-30 pointer-events-none">
                 <div className="h-7 bg-black/20" />
@@ -1122,7 +842,7 @@ export function Phone() {
               </div>
             )}
 
-            {/* 잠금 배경 */}
+            
             <img
               src="/lock.jpg"
               alt="lock"
@@ -1132,7 +852,7 @@ export function Phone() {
               ].join(" ")}
             />
 
-            {/* 홈 배경 */}
+            
             <img
               src={homeSrc}
               alt="home"
@@ -1142,7 +862,7 @@ export function Phone() {
               ].join(" ")}
             />
 
-            {/* 홈 화면 앱 아이콘(3열 + 크기 확대) */}
+            
             {screen === "home" && !appOpen && (
               <div className="absolute top-16 left-0 right-0 z-10 px-7">
                 <div className="grid grid-cols-3 gap-x-6 gap-y-7">
@@ -1155,17 +875,17 @@ export function Phone() {
                         openApp(a.id);
                       }}
                     >
-                      <div className="rounded-2xl overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,.25)] bg-white/20" style={{ width: HOME_ICON_PX, height: HOME_ICON_PX }}>
+                      <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,.25)] bg-white/20">
                         <img src={a.iconSrc} alt={a.label} className="w-full h-full object-cover" />
                       </div>
-                      <div className="font-semibold text-white" style={{ ...appLabelStyle, fontSize: HOME_LABEL_PX }}>{a.label}</div>
+                      <div className="text-[10px] font-semibold text-black/90">{a.label}</div>
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* 초기 검정 화면 */}
+            
             <div
               className={[
                 "absolute inset-0 bg-black transition-opacity duration-200",
@@ -1173,7 +893,7 @@ export function Phone() {
               ].join(" ")}
             />
 
-            {/* 잠금화면 큰 시간/날짜 */}
+            
             <div
               className={[
                 "absolute top-[92px] left-0 right-0 text-center z-10 transition-all duration-200",
@@ -1188,22 +908,22 @@ export function Phone() {
               </div>
             </div>
 
-            {/* 안내 */}
+            
             <div
               className={[
                 "absolute bottom-4 left-0 right-0 text-center text-xs z-10 transition-opacity",
                 screen === "off" || screen === "lock" ? "opacity-85" : "opacity-0 pointer-events-none"
               ].join(" ")}
             >
-              화면을 클릭하세요
+              화면을 클릭
             </div>
 
-            {/* PASSCODE 오버레이 */}
+            
             <div
               className={["absolute inset-0 z-20", screen === "passcode" ? "pointer-events-auto" : "pointer-events-none"].join(" ")}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* 배경 블러 */}
+              
               <div
                 className={[
                   "absolute inset-0 bg-black/35 backdrop-blur-[14px]",
@@ -1212,7 +932,7 @@ export function Phone() {
                 ].join(" ")}
               />
 
-              {/* 키패드 */}
+              
               <div
                 className={[
                   "absolute inset-0",
@@ -1220,7 +940,7 @@ export function Phone() {
                   screen === "passcode" ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
                 ].join(" ")}
               >
-                {/* 뒤로가기 */}
+                
                 <button
                   className="absolute top-12 left-4 w-10 h-10 rounded-2xl bg-white/10 border border-white/15 grid place-items-center font-black"
                   onClick={closePasscode}
@@ -1229,10 +949,10 @@ export function Phone() {
                   ‹
                 </button>
 
-                {/* 힌트 + 점 */}
-                <div className="absolute top-45 left-0 right-0 grid place-items-center gap-3 scale-[1.1]">
+                
+                <div className="absolute top-28 left-0 right-0 grid place-items-center gap-3">
                   <div className={["text-xs text-white/90 h-5 transition-all", hint ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1"].join(" ")}>
-                    힌트: 夜
+                    힌트: 2^10
                   </div>
 
                   <div className={["flex gap-3", shake ? "animate-[shake_.35s_ease]" : ""].join(" ")}>
@@ -1248,7 +968,7 @@ export function Phone() {
                   </div>
                 </div>
 
-                {/* 키패드 버튼 */}
+                
                 <div className="absolute bottom-5 left-0 right-0 px-6">
                   <div className="grid grid-cols-3 gap-3">
                     {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
@@ -1261,9 +981,9 @@ export function Phone() {
                       </button>
                     ))}
 
-                    {/* 긴급 버튼 */}
+                    
                     <button
-                      className="h-14 rounded-full bg-white/10 border border-white/15 text-white text-xs font-extrabold active:scale-[.98]" style={{color: "rgb(248, 41, 41)"}}
+                      className="h-14 rounded-full bg-white/10 border border-white/15 text-white text-xs font-extrabold active:scale-[.98]"
                       onClick={openEmergency}
                     >
                       긴급
@@ -1277,7 +997,7 @@ export function Phone() {
                     </button>
 
                     <button
-                      className="h-14 rounded-full bg-white/10 border border-white/15 text-white text-base active:scale-[.98]"
+                      className="h-14 rounded-full bg-white/10 border border-white/15 text-white text-base font-extrabold active:scale-[.98]"
                       onClick={deleteDigit}
                       aria-label="delete"
                     >
@@ -1286,7 +1006,7 @@ export function Phone() {
                   </div>
                 </div>
 
-                {/* 긴급 연락처 */}
+                
                 <EmergencyModal open={emergencyOpen} onClose={closeEmergency} />
 
                 <style>{`
@@ -1301,22 +1021,18 @@ export function Phone() {
               </div>
             </div>
 
-            {/* 앱 팝업 */}
+            
             <AppModal
               open={appOpen && !!appId}
               title={appTitle}
               onBack={closeAppByBack}
               onAfterClose={clearAppId}
-              // ✅ 갤러리는 자체 헤더(우측 X) 사용
+              
               hideHeader={appId === "gallery"}
               onOverlayPointerDown={soundOnce}
             >
               {renderApp()}
             </AppModal>
-
-            <style>{`
-              .customCursor * { cursor: inherit !important; }
-            `}</style>
           </div>
         </div>
       </div>
