@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { MEMOS, type MemoItem } from "./memos";
 import { DIARIES, type DiaryItem } from "./diaries";
+import { SETTINGS, SettingsApp } from "./settings";
 import { EmergencyModal } from "./EmergencyModal";
-
 
 const AUTO_GALLERY_ENTRIES = import.meta.glob("../assets/gallery/*.{png,jpg,jpeg,webp}", {
   eager: true,
@@ -13,24 +13,38 @@ const AUTO_GALLERY_URLS = Object.entries(AUTO_GALLERY_ENTRIES)
   .sort((a, b) => a[0].localeCompare(b[0]))
   .map(([, url]) => url);
 
-
 const PUBLIC_GALLERY_FILENAMES: string[] = [
-  
-];
 
+];
 
 type ScreenState = "off" | "lock" | "passcode" | "home";
 
-
 type AppId = "gallery" | "memo" | "diary" | "settings";
 type HomeApp = { id: AppId; label: string; iconSrc: string };
+const publicUrl = (p: string) => `${import.meta.env.BASE_URL}${p.replace(/^\/+/, "")}`;
 
 const HOME_APPS: HomeApp[] = [
-  { id: "gallery", label: "앨범", iconSrc: "/apps/app1.png" },
-  { id: "memo", label: "메모", iconSrc: "/apps/app2.png" },
-  { id: "diary", label: "일기", iconSrc: "/apps/app3.png" },
-  { id: "settings", label: "설정", iconSrc: "/apps/app4.png" }
+  { id: "gallery", label: "앨범", iconSrc: publicUrl("apps/app1.png") },
+  { id: "memo", label: "메모", iconSrc: publicUrl("apps/app2.png") },
+  { id: "diary", label: "일기", iconSrc: publicUrl("apps/app3.png") },
+  { id: "settings", label: "설정", iconSrc: publicUrl("apps/app4.png") }
 ];
+
+
+
+const UI_SCALE = 1.1025;
+
+const HOME_ICON_PX = Math.round(64 * UI_SCALE); 
+const HOME_LABEL_PX = Math.round(12 * UI_SCALE);    
+
+const APP_TITLE_PX = Math.round(16 * UI_SCALE); 
+const APP_SUB_PX = Math.round(12 * UI_SCALE);    
+
+
+const CURSOR_DEFAULT_SRC = `${import.meta.env.BASE_URL}cursor-default.png`;
+const CURSOR_DOWN_SRC = `${import.meta.env.BASE_URL}cursor-down.png`;
+const CURSOR_HOTSPOT_X = 16;
+const CURSOR_HOTSPOT_Y = 16;
 
 
 function fmtTime(d: Date) {
@@ -48,9 +62,8 @@ function fmtDate(d: Date) {
   }).format(d);
 }
 
-
 const TARGET_SHA256_HEX =
-  "e39eef82f61b21e2e7f762fcc4307358f165757f2e77ec855d6992f7e0191932"; 
+  "e39eef82f61b21e2e7f762fcc4307358f165757f2e77ec855d6992f7e0191932";
 
 function toHex(buffer: ArrayBuffer) {
   const bytes = new Uint8Array(buffer);
@@ -69,7 +82,6 @@ async function verifyPin(pin4: string) {
   const hash = await sha256Hex(pin4);
   return hash === TARGET_SHA256_HEX;
 }
-
 
 function SignalIcon() {
   return (
@@ -91,7 +103,6 @@ function WifiIcon() {
     </svg>
   );
 }
-
 
 function AppModal({
   open,
@@ -179,11 +190,11 @@ function AppModal({
               >
                 ‹
               </button>
-              <div className="font-extrabold">{title}</div>
+              <div className="font-extrabold" style={{ fontSize: APP_TITLE_PX }}>{title}</div>
             </div>
           )}
 
-          <div className={hideHeader ? "h-full overflow-auto" : "h-[calc(100%-48px)] overflow-auto"}>
+          <div className={hideHeader ? "h-full overflow-hidden" : "h-[calc(100%-48px)] overflow-auto"}>
             {children}
           </div>
         </div>
@@ -191,72 +202,254 @@ function AppModal({
     </div>
   );
 }
+
+const GalleryThumbGrid = memo(function GalleryThumbGrid({
+  images,
+  onOpen
+}: {
+  images: string[];
+  onOpen: (src: string) => void;
+}) {
+  return (
+    <div className="px-2 py-2">
+      <div className="grid grid-cols-3 gap-[2px] bg-black/15 p-[2px]">
+        {images.map((src) => (
+          <button
+            key={src}
+            type="button"
+            className="aspect-square bg-white overflow-hidden"
+            style={{ ...( { contentVisibility: "auto", containIntrinsicSize: "120px 120px" } as any ) }}
+            onClick={() => onOpen(src)}
+            title="사진 보기"
+          >
+            <img
+              src={src}
+              className="w-full h-full object-cover"
+              alt="thumb"
+              loading="lazy"
+              decoding="async"
+              draggable={false}
+            />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+});
+
 function GalleryApp({
   images,
   onCloseApp,
   onSetWallpaper,
-  onResetWallpaper,
-  onSound
+  onResetWallpaper
 }: {
   images: string[];
   onCloseApp: () => void;
   onSetWallpaper: (src: string) => void;
   onResetWallpaper: () => void;
-  onSound: () => void;
 }) {
-  
   const DURATION = 260;
+
   const [viewerMounted, setViewerMounted] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerSrc, setViewerSrc] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const openViewer = (src: string) => {
-    onSound();
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const panRef = useRef(pan);
+  useEffect(() => {
+    panRef.current = pan;
+  }, [pan]);
+
+  const viewerAreaRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef(false);
+  const [dragging, setDragging] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+
+  const clampPan = useCallback((x: number, y: number, z: number) => {
+    const el = viewerAreaRef.current;
+    if (!el) return { x, y };
+    const w = el.clientWidth;
+    const h = el.clientHeight;
+
+    const maxX = Math.max(0, (w * (z - 1)) / 2);
+    const maxY = Math.max(0, (h * (z - 1)) / 2);
+
+    return {
+      x: Math.min(maxX, Math.max(-maxX, x)),
+      y: Math.min(maxY, Math.max(-maxY, y))
+    };
+  }, []);
+
+  const onPointerDownPan = useCallback((e: any) => {
+    if (zoom <= 1.01) return;
+    draggingRef.current = true;
+    setDragging(true);
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      panX: panRef.current.x,
+      panY: panRef.current.y
+    };
+    try {
+      e.currentTarget?.setPointerCapture?.(e.pointerId);
+    } catch {}
+    e.preventDefault();
+    e.stopPropagation();
+  }, [zoom]);
+
+  const onPointerMovePan = useCallback((e: any) => {
+    if (!draggingRef.current) return;
+    const dx = e.clientX - dragStartRef.current.x;
+    const dy = e.clientY - dragStartRef.current.y;
+
+    const next = clampPan(dragStartRef.current.panX + dx, dragStartRef.current.panY + dy, zoom);
+    setPan(next);
+
+    e.preventDefault();
+    e.stopPropagation();
+  }, [clampPan, zoom]);
+
+  const endPan = useCallback((e: any) => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    setDragging(false);
+    try {
+      e.currentTarget?.releasePointerCapture?.(e.pointerId);
+    } catch {}
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+
+  const BATCH = 48;
+  const [limit, setLimit] = useState(() => Math.min(images.length, BATCH));
+  useEffect(() => {
+    setLimit(Math.min(images.length, BATCH));
+  }, [images.length]);
+
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!sentinelRef.current) return;
+    const rootEl = listRef.current;
+
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const hit = entries.some((e) => e.isIntersecting);
+        if (!hit) return;
+        setLimit((prev) => (prev >= images.length ? prev : Math.min(images.length, prev + BATCH)));
+      },
+      {
+        root: rootEl,
+        rootMargin: "600px 0px",
+        threshold: 0.01
+      }
+    );
+
+    obs.observe(sentinelRef.current);
+    return () => obs.disconnect();
+  }, [images.length]);
+
+  const visibleImages = useMemo(() => images.slice(0, limit), [images, limit]);
+
+  const openViewer = useCallback((src: string) => {
     setViewerSrc(src);
+    setSaved(false);
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+
     setViewerMounted(true);
     setViewerVisible(false);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => setViewerVisible(true));
     });
-  };
+  }, []);
 
-  const closeViewer = () => {
-    onSound();
+  const closeViewer = useCallback(() => {
     setViewerVisible(false);
     window.setTimeout(() => {
       setViewerMounted(false);
       setViewerSrc(null);
       setSaved(false);
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
     }, DURATION);
-  };
+  }, []);
+
+  const onWheelZoom = useCallback((e: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const delta = -e.deltaY * 0.0015;
+    setZoom((z) => {
+      const next = Math.min(3, Math.max(1, z + delta));
+      const fixed = Number(next.toFixed(3));
+
+      setPan((p) => clampPan(p.x, p.y, fixed));
+
+      if (fixed <= 1.01) {
+        setPan({ x: 0, y: 0 });
+        return 1;
+      }
+
+      return fixed;
+    });
+  }, [clampPan]);
+
+  const onDoubleZoom = useCallback(() => {
+    setZoom((z) => {
+      const next = z <= 1.01 ? 2.2 : 1;
+
+      if (next <= 1.01) {
+        setPan({ x: 0, y: 0 });
+        return 1;
+      }
+
+      setPan((p) => clampPan(p.x, p.y, next));
+      return next;
+    });
+  }, [clampPan]);
 
   const countText = `이미지 ${images.length}개`;
 
   return (
-    <div className="relative h-full bg-white">
-      
-      <div className="h-14 px-4 flex items-center justify-between border-b border-black/10">
-        <div>
-          <div className="text-base font-extrabold">앨범</div>
-          <div className="text-xs font-semibold text-black/45">{countText}</div>
+    <div className="relative h-full bg-white flex flex-col">
+      {}
+      <div className="h-14 px-4 flex items-center gap-2 border-b border-black/10 shrink-0">
+        <button
+          type="button"
+          className="w-8 h-8 rounded-xl grid place-items-center text-[22px] leading-none active:scale-[.99]"
+          onClick={onCloseApp}
+          aria-label="back-gallery"
+        >
+          ‹
+        </button>
+
+        <div className="min-w-0">
+          <div className="font-extrabold text-black" style={{ fontSize: APP_TITLE_PX }}>앨범</div>
+          <div className="font-semibold text-black/45" style={{ fontSize: APP_SUB_PX }}>{countText}</div>
         </div>
 
-        
-        <button
-          className="w-8 h-8 rounded-xl border border-black/10 bg-black/5 font-black"
-          onClick={() => {
-            onSound();
-            onCloseApp();
-          }}
-          aria-label="close-gallery"
-        >
-          ×
-        </button>
+        <div className="flex-1" />
       </div>
 
-      
-      <div className="h-[calc(100%-56px)] overflow-auto">
+      {}
+      <div
+        ref={listRef}
+        className={[
+          "flex-1",
+          viewerMounted ? "overflow-hidden" : "overflow-y-scroll",
+          "bg-white"
+        ].join(" ")}
+        style={{
+          overscrollBehavior: "contain",
+          WebkitOverflowScrolling: "touch",
+          ...( { scrollbarGutter: "stable" } as any )
+        }}
+      >
         {images.length === 0 ? (
           <div className="p-4">
             <div className="text-xs text-black/55 p-3 rounded-xl border border-black/10 bg-black/[0.03]">
@@ -272,28 +465,27 @@ function GalleryApp({
             </div>
           </div>
         ) : (
-          <div className="px-2 py-2">
-            
-            <div className="grid grid-cols-3 gap-[2px] bg-black/15 p-[2px]">
-              {images.map((src) => (
-                <button
-                  key={src}
-                  className="aspect-square bg-white overflow-hidden"
-                  onClick={() => openViewer(src)}
-                  title="사진 보기"
-                >
-                  <img src={src} className="w-full h-full object-cover" alt="thumb" />
-                </button>
-              ))}
-            </div>
-          </div>
+          <>
+            <GalleryThumbGrid images={visibleImages} onOpen={openViewer} />
+            <div ref={sentinelRef} className="h-10" />
+          </>
         )}
       </div>
 
-      
+      {}
+      <div className="shrink-0 p-4 border-t border-black/10 bg-white">
+        <button
+          type="button"
+          className="w-full h-11 rounded-2xl bg-black/5 text-black font-extrabold active:scale-[.99]"
+          onClick={onResetWallpaper}
+        >
+          배경화면 초기화
+        </button>
+      </div>
+
+      {}
       {viewerMounted && (
-        <div className="absolute inset-0 z-20">
-          
+        <div className="absolute inset-0 z-20 overflow-hidden" style={{ overscrollBehavior: "none" }}>
           <div
             className={[
               "absolute inset-0 bg-white",
@@ -302,46 +494,64 @@ function GalleryApp({
             ].join(" ")}
           />
 
-          
           <div
             className={[
-              "absolute inset-0",
+              "absolute inset-0 flex flex-col",
               "transition-all duration-300 ease-out",
               viewerVisible ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-6 scale-[0.98]"
             ].join(" ")}
           >
-            
-            <div className="h-14 px-4 flex items-center justify-between border-b border-black/10 bg-white">
-              <div className="text-base font-extrabold">사진</div>
-
+            <div className="h-12 flex items-center gap-2 px-4 border-b border-black/10 bg-white shrink-0">
               <button
-                className="w-8 h-8 rounded-xl border border-black/10 bg-black/5 font-black"
+                type="button"
+                className="w-8 h-8 rounded-xl grid place-items-center text-[22px] leading-none active:scale-[.99]"
                 onClick={closeViewer}
-                aria-label="close-photo"
+                aria-label="back-photo"
               >
-                ×
+                ‹
               </button>
+              <div className="font-extrabold text-black" style={{ fontSize: APP_TITLE_PX }}>앨범</div>
+              <div className="flex-1" />
             </div>
 
-            
-            <div className="absolute top-14 bottom-20 left-0 right-0 p-0 bg-white">
-              <img
-                src={viewerSrc ?? ""}
-                alt="selected"
-                className={[
-                  "w-full h-full object-contain",
-                  "transition-transform duration-300",
-                  viewerVisible ? "scale-[1.04]" : "scale-[1.01]"
-                ].join(" ")}
-              />
+            {}
+            <div
+              ref={viewerAreaRef}
+              className="relative flex-1 overflow-hidden bg-white"
+              onWheel={onWheelZoom}
+              onDoubleClick={onDoubleZoom}
+              onPointerDown={onPointerDownPan}
+              onPointerMove={onPointerMovePan}
+              onPointerUp={endPan}
+              onPointerCancel={endPan}
+              style={{
+                touchAction: "none",
+                cursor: "inherit"
+              }}
+            >
+              {viewerSrc && (
+                <img
+                  src={viewerSrc}
+                  alt="selected"
+                  className="absolute inset-0 w-full h-full object-contain select-none"
+                  style={{
+                    transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
+                    transformOrigin: "center",
+                    willChange: "transform",
+                    transition: "transform 90ms ease-out"
+                  }}
+                  draggable={false}
+                  decoding="async"
+                />
+              )}
             </div>
 
-            
-            <div className="absolute left-0 right-0 bottom-0 p-4 border-t border-black/10 bg-white">
+            {}
+            <div className="shrink-0 p-4 border-t border-black/10 bg-white">
               <button
+                type="button"
                 className="w-full h-11 rounded-2xl bg-black text-white font-extrabold active:scale-[.99]"
                 onClick={() => {
-                  onSound();
                   if (!viewerSrc) return;
                   onSetWallpaper(viewerSrc);
                   setSaved(true);
@@ -351,18 +561,12 @@ function GalleryApp({
                 배경화면 설정
               </button>
 
-              <button
-                className="mt-2 w-full h-11 rounded-2xl bg-black/5 text-black font-extrabold active:scale-[.99]"
-                onClick={() => {
-                  onSound();
-                  onResetWallpaper();
-                }}
-              >
-                초기화(기본 배경으로)
-              </button>
-
               <div className={["mt-2 text-center text-[11px] transition-opacity", saved ? "opacity-80" : "opacity-0"].join(" ")}>
                 배경화면으로 설정되었습니다.
+              </div>
+
+              <div className="mt-2 text-center text-[11px] text-black/40">
+                확대/축소: 마우스 휠 · 빠른 확대: 더블클릭 · 이동: 드래그
               </div>
             </div>
           </div>
@@ -371,7 +575,6 @@ function GalleryApp({
     </div>
   );
 }
-
 
 function MemoApp({ memos }: { memos: MemoItem[] }) {
   return (
@@ -391,17 +594,16 @@ function MemoApp({ memos }: { memos: MemoItem[] }) {
   );
 }
 
-
-function DiaryApp({ diaries, onSound }: { diaries: DiaryItem[]; onSound: () => void }) {
+function DiaryApp({ diaries }: { diaries: DiaryItem[] }) {
   return (
     <div className="p-4">
       <div className="space-y-3">
         {diaries.map((d) => (
           <button
             key={d.id}
+            type="button"
             className="w-full text-left rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-[0_10px_25px_rgba(0,0,0,.08)] active:scale-[.99]"
             onClick={() => {
-              onSound();
               window.open(d.url, "_blank", "noopener,noreferrer");
             }}
             title="클릭하면 링크로 이동"
@@ -417,54 +619,21 @@ function DiaryApp({ diaries, onSound }: { diaries: DiaryItem[]; onSound: () => v
 }
 
 
-type SettingRow = { key: string; value: string };
-
-const SETTINGS: SettingRow[] = [
-  { key: "이름", value: "기환석" },
-  { key: "나이", value: "17세" },
-  { key: "생년월일", value: "1월 12일" },
-  { key: "신장", value: "184cm" },
-  { key: "혈액형", value: "O형" },
-  { key: "전화번호", value: "010-712X-XXXX" }
-];
-
-function SettingsApp({ rows }: { rows: SettingRow[] }) {
-  return (
-    <div className="bg-[#f1f2f5] h-full">
-      <div className="h-12 bg-white" />
-      <div className="bg-white">
-        {rows.map((r) => (
-          <div key={r.key} className="flex items-center justify-between px-4 py-3 border-t border-black/5 text-sm">
-            <div className="text-black/80">{r.key}</div>
-            <div className="text-black/45">{r.value}</div>
-          </div>
-        ))}
-      </div>
-      <div className="text-center text-xs text-black/25 py-6">2026년 기준</div>
-    </div>
-  );
-}
-
 export function Phone() {
-  const publicUrl = (p: string) => `${import.meta.env.BASE_URL}${p.replace(/^\/+/, "")}`;
 
   const [screen, setScreen] = useState<ScreenState>("off");
   const [now, setNow] = useState(() => new Date());
 
-  
   const DEFAULT_HOME_SRC = publicUrl("home.jpg");
   const DEFAULT_LOCK_SRC = publicUrl("lock.jpg");
 
-
   const [homeSrc, setHomeSrc] = useState<string>(DEFAULT_HOME_SRC);
 
-  
   const galleryUrls = useMemo(() => {
     if (AUTO_GALLERY_URLS.length) return AUTO_GALLERY_URLS;
     return PUBLIC_GALLERY_FILENAMES.map((fn) => `/gallery/${fn}`);
   }, []);
 
-  
   const [pin, setPin] = useState("");
   const pinRef = useRef(pin);
   useEffect(() => {
@@ -480,18 +649,17 @@ export function Phone() {
   const [hint, setHint] = useState(false);
   const [shake, setShake] = useState(false);
 
-  
   const [emergencyOpen, setEmergencyOpen] = useState(false);
   const emergencyOpenRef = useRef(emergencyOpen);
   useEffect(() => {
     emergencyOpenRef.current = emergencyOpen;
   }, [emergencyOpen]);
 
-  
   const [powerPressed, setPowerPressed] = useState(false);
   const resumeAfterUnlockRef = useRef<ScreenState>("home");
 
-  
+  const [cursorDown, setCursorDown] = useState(false);
+
   const [appOpen, setAppOpen] = useState(false);
   const [appId, setAppId] = useState<AppId | null>(null);
   const appOpenRef = useRef(appOpen);
@@ -499,14 +667,18 @@ export function Phone() {
     appOpenRef.current = appOpen;
   }, [appOpen]);
 
-  
   const outlineStyle = {
     textShadow:
       "0 1px 0 #000, 0 -1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, " +
       "1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000"
   } as const;
 
-  
+
+  const appLabelStyle = {
+    textShadow:
+      "0 1px 0 rgba(0,0,0,.75), 0 -1px 0 rgba(0,0,0,.75), 1px 0 0 rgba(0,0,0,.75), -1px 0 0 rgba(0,0,0,.75)"
+  } as const;
+
   const audioRef = useRef<{ ctx: AudioContext; master: GainNode } | null>(null);
 
   function ensureAudio() {
@@ -514,7 +686,7 @@ export function Phone() {
       const AC = window.AudioContext || (window as any).webkitAudioContext;
       const ctx: AudioContext = new AC();
       const master = ctx.createGain();
-      master.gain.value = 0.18;
+      master.gain.value = 0.30;
       master.connect(ctx.destination);
       audioRef.current = { ctx, master };
     }
@@ -532,7 +704,7 @@ export function Phone() {
       osc.frequency.setValueAtTime(1200, ctx.currentTime);
 
       g.gain.setValueAtTime(0.0001, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.004);
       g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.03);
 
       osc.connect(g);
@@ -541,28 +713,34 @@ export function Phone() {
       osc.start();
       osc.stop(ctx.currentTime + 0.035);
     } catch {
-      
     }
   }
 
-  
-  const soundGateRef = useRef(false);
+  const soundLastAtRef = useRef(0);
   function soundOnce() {
-    if (soundGateRef.current) return;
-    soundGateRef.current = true;
+    const t = performance.now();
+    if (t - soundLastAtRef.current < 160) return;
+    soundLastAtRef.current = t;
     playClickSound();
-    requestAnimationFrame(() => {
-      soundGateRef.current = false;
-    });
   }
 
-  
+  useEffect(() => {
+    const up = () => setCursorDown(false);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    window.addEventListener("blur", up);
+    return () => {
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      window.removeEventListener("blur", up);
+    };
+  }, []);
+
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(id);
   }, []);
 
-  
   const screenRef = useRef(screen);
   useEffect(() => {
     screenRef.current = screen;
@@ -574,20 +752,17 @@ export function Phone() {
     const onPop = (e: PopStateEvent) => {
       const layer = e.state?.layer ?? "base";
 
-      
       if (layer === "passcode" && emergencyOpenRef.current) {
         setEmergencyOpen(false);
         setScreen("passcode");
         return;
       }
 
-      
       if (layer === "base" && appOpenRef.current) {
         setAppOpen(false);
         return;
       }
 
-      
       if (layer === "base" && screenRef.current === "passcode") {
         setEmergencyOpen(false);
         setPinSafe("");
@@ -599,13 +774,10 @@ export function Phone() {
 
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-    
   }, []);
 
-  
   const dots = useMemo(() => [0, 1, 2, 3].map((i) => i < pin.length), [pin]);
 
-  
   function onScreenClick() {
     soundOnce();
 
@@ -613,9 +785,7 @@ export function Phone() {
     if (screen === "lock") return openPasscode();
   }
 
-  
   function openPasscode() {
-    soundOnce();
     setPinSafe("");
     setHint(false);
     setEmergencyOpen(false);
@@ -623,24 +793,18 @@ export function Phone() {
     history.pushState({ layer: "passcode" }, "");
   }
   function closePasscode() {
-    soundOnce();
     history.back();
   }
 
-  
   function openEmergency() {
-    soundOnce();
     setEmergencyOpen(true);
     history.pushState({ layer: "emergency" }, "");
   }
   function closeEmergency() {
-    soundOnce();
     history.back();
   }
 
-  
   async function appendDigit(d: string) {
-    soundOnce();
     if (verifyingRef.current) return;
 
     const prev = pinRef.current;
@@ -671,7 +835,6 @@ export function Phone() {
   }
 
   function deleteDigit() {
-    soundOnce();
     if (verifyingRef.current) return;
 
     const prev = pinRef.current;
@@ -679,7 +842,6 @@ export function Phone() {
     setPinSafe(prev.slice(0, -1));
   }
 
-  
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (screenRef.current !== "passcode") return;
@@ -694,10 +856,8 @@ export function Phone() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    
   }, []);
 
-  
   function pressPowerButton() {
     soundOnce();
     setPowerPressed(true);
@@ -724,21 +884,17 @@ export function Phone() {
     }
   }
 
-  
   function openApp(id: AppId) {
-    soundOnce();
     setAppId(id);
     setAppOpen(true);
     history.pushState({ layer: "app", app: id }, "");
   }
   function closeAppByBack() {
-    soundOnce();
     history.back();
   }
 
   const clearAppId = () => setAppId(null);
 
-  
   function renderApp() {
     if (!appId) return null;
 
@@ -749,13 +905,12 @@ export function Phone() {
           onCloseApp={closeAppByBack}
           onSetWallpaper={(src) => setHomeSrc(src)}
           onResetWallpaper={() => setHomeSrc(DEFAULT_HOME_SRC)}
-          onSound={soundOnce}
         />
       );
     }
 
     if (appId === "memo") return <MemoApp memos={MEMOS} />;
-    if (appId === "diary") return <DiaryApp diaries={DIARIES} onSound={soundOnce} />;
+    if (appId === "diary") return <DiaryApp diaries={DIARIES} />;
     if (appId === "settings") return <SettingsApp rows={SETTINGS} />;
 
     return null;
@@ -772,12 +927,11 @@ export function Phone() {
             ? "설정"
             : "";
 
-
   return (
     <div className="min-h-screen bg-zinc-100 grid place-items-center p-6">
-      
-      <div className="relative overflow-visible w-[min(390px,86vw)] aspect-[9/19.5] scale-[1.25] origin-center">
-        
+      {}
+      <div className="relative overflow-visible w-[min(451px,99vw)] aspect-[9.45/18.525] scale-[1.2] origin-center">
+        {}
         <button
           type="button"
           aria-label="power"
@@ -804,24 +958,32 @@ export function Phone() {
           }}
         />
 
-        
+        {}
         <div
           className="relative z-20 w-full h-full rounded-[34px] shadow-[0_30px_80px_rgba(0,0,0,.35)] p-[14px]"
           style={{
             background: "linear-gradient(180deg, rgb(186,216,167) 0%, rgb(122,195,196) 100%)"
           }}
         >
-          
+          {}
           <div
-            className="relative w-full h-full rounded-[24px] overflow-hidden bg-black cursor-pointer select-none"
+            className="relative w-full h-full rounded-[24px] overflow-hidden bg-black select-none customCursor"
             onClick={onScreenClick}
-            
+            style={{
+              fontSize: `${16 * UI_SCALE}px`,
+              cursor: cursorDown
+                ? `url(${CURSOR_DOWN_SRC}) ${CURSOR_HOTSPOT_X} ${CURSOR_HOTSPOT_Y}, auto`
+                : `url(${CURSOR_DEFAULT_SRC}) ${CURSOR_HOTSPOT_X} ${CURSOR_HOTSPOT_Y}, auto`
+            }}
             onPointerDownCapture={(e) => {
+              setCursorDown(true);
               const el = e.target as HTMLElement;
               if (el.closest("button")) soundOnce();
             }}
+            onPointerUpCapture={() => setCursorDown(false)}
+            onPointerCancelCapture={() => setCursorDown(false)}
           >
-            
+            {}
             {screen !== "off" && (
               <div className="absolute top-0 left-0 right-0 z-30 pointer-events-none">
                 <div className="h-7 bg-black/20" />
@@ -846,7 +1008,7 @@ export function Phone() {
               </div>
             )}
 
-            
+            {}
             <img
               src={DEFAULT_LOCK_SRC}
               alt="lock"
@@ -856,7 +1018,7 @@ export function Phone() {
               ].join(" ")}
             />
 
-            
+            {}
             <img
               src={homeSrc}
               alt="home"
@@ -866,7 +1028,7 @@ export function Phone() {
               ].join(" ")}
             />
 
-            
+            {}
             {screen === "home" && !appOpen && (
               <div className="absolute top-16 left-0 right-0 z-10 px-7">
                 <div className="grid grid-cols-3 gap-x-6 gap-y-7">
@@ -879,17 +1041,17 @@ export function Phone() {
                         openApp(a.id);
                       }}
                     >
-                      <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,.25)] bg-white/20">
+                      <div className="rounded-2xl overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,.25)] bg-white/20" style={{ width: HOME_ICON_PX, height: HOME_ICON_PX }}>
                         <img src={a.iconSrc} alt={a.label} className="w-full h-full object-cover" />
                       </div>
-                      <div className="text-[10px] font-semibold text-black/90">{a.label}</div>
+                      <div className="font-semibold text-white" style={{ ...appLabelStyle, fontSize: HOME_LABEL_PX }}>{a.label}</div>
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            
+            {}
             <div
               className={[
                 "absolute inset-0 bg-black transition-opacity duration-200",
@@ -897,7 +1059,7 @@ export function Phone() {
               ].join(" ")}
             />
 
-            
+            {}
             <div
               className={[
                 "absolute top-[92px] left-0 right-0 text-center z-10 transition-all duration-200",
@@ -912,7 +1074,7 @@ export function Phone() {
               </div>
             </div>
 
-            
+            {}
             <div
               className={[
                 "absolute bottom-4 left-0 right-0 text-center text-xs z-10 transition-opacity",
@@ -922,12 +1084,12 @@ export function Phone() {
               화면을 클릭하세요
             </div>
 
-            
+            {}
             <div
               className={["absolute inset-0 z-20", screen === "passcode" ? "pointer-events-auto" : "pointer-events-none"].join(" ")}
               onClick={(e) => e.stopPropagation()}
             >
-              
+              {}
               <div
                 className={[
                   "absolute inset-0 bg-black/35 backdrop-blur-[14px]",
@@ -936,7 +1098,7 @@ export function Phone() {
                 ].join(" ")}
               />
 
-              
+              {}
               <div
                 className={[
                   "absolute inset-0",
@@ -944,7 +1106,7 @@ export function Phone() {
                   screen === "passcode" ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
                 ].join(" ")}
               >
-                
+                {}
                 <button
                   className="absolute top-12 left-4 w-10 h-10 rounded-2xl bg-white/10 border border-white/15 grid place-items-center font-black"
                   onClick={closePasscode}
@@ -953,7 +1115,7 @@ export function Phone() {
                   ‹
                 </button>
 
-                
+                {}
                 <div className="absolute top-45 left-0 right-0 grid place-items-center gap-3 scale-[1.1]">
                   <div className={["text-xs text-white/90 h-5 transition-all", hint ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1"].join(" ")}>
                     힌트: 夜
@@ -972,7 +1134,7 @@ export function Phone() {
                   </div>
                 </div>
 
-                
+                {}
                 <div className="absolute bottom-5 left-0 right-0 px-6">
                   <div className="grid grid-cols-3 gap-3">
                     {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => (
@@ -985,7 +1147,7 @@ export function Phone() {
                       </button>
                     ))}
 
-                    
+                    {}
                     <button
                       className="h-14 rounded-full bg-white/10 border border-white/15 text-white text-xs font-extrabold active:scale-[.98]" style={{color: "rgb(248, 41, 41)"}}
                       onClick={openEmergency}
@@ -1001,7 +1163,7 @@ export function Phone() {
                     </button>
 
                     <button
-                      className="h-14 rounded-full bg-white/10 border border-white/15 text-white text-base font-extrabold active:scale-[.98]"
+                      className="h-14 rounded-full bg-white/10 border border-white/15 text-white text-base active:scale-[.98]"
                       onClick={deleteDigit}
                       aria-label="delete"
                     >
@@ -1010,7 +1172,7 @@ export function Phone() {
                   </div>
                 </div>
 
-                
+                {}
                 <EmergencyModal open={emergencyOpen} onClose={closeEmergency} />
 
                 <style>{`
@@ -1025,18 +1187,21 @@ export function Phone() {
               </div>
             </div>
 
-            
+            {}
             <AppModal
               open={appOpen && !!appId}
               title={appTitle}
               onBack={closeAppByBack}
               onAfterClose={clearAppId}
-              
               hideHeader={appId === "gallery"}
               onOverlayPointerDown={soundOnce}
             >
               {renderApp()}
             </AppModal>
+
+            <style>{`
+              .customCursor * { cursor: inherit !important; }
+            `}</style>
           </div>
         </div>
       </div>
