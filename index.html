@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Phone Lock Screen Demo</title>
+  <style>
+    :root{
+      /* ✅ 화면 비율: 9:19.5 */
+      --screen-w: 360px;               /* 데스크톱에서 보이는 휴대폰 화면 가로 */
+      --screen-aspect: 9 / 19.5;       /* 가로/세로 비율 */
+      --bezel: 14px;
+      --radius: 34px;
+      --shadow: 0 30px 80px rgba(0,0,0,.55);
+      --glass: rgba(0,0,0,.35);
+      --line: rgba(255,255,255,.25);
+      --white: #fff;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #000;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", sans-serif;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    /* 중앙 정렬 */
+    .stage{
+      height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    /* 폰 바디 */
+    .phone{
+      width: calc(var(--screen-w) + var(--bezel)*2);
+      aspect-ratio: var(--screen-aspect);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, #222, #0c0c0c);
+      box-shadow: var(--shadow);
+      position: relative;
+      display: grid;
+      place-items: center;
+      user-select: none;
+    }
+
+    /* 베젤 안쪽(스크린 영역) */
+    .screen{
+      width: var(--screen-w);
+      aspect-ratio: var(--screen-aspect);
+      border-radius: calc(var(--radius) - 10px);
+      overflow: hidden;
+      position: relative;
+      background: #000;
+      cursor: pointer;
+    }
+
+    /* 배경 이미지(잠금/메인 공용) */
+    .wallpaper{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover; /* 비율이 약간 달라도 꽉 채움 */
+      opacity: 0;
+      transform: scale(1.03);
+      transition: opacity .35s ease, transform .6s ease;
+    }
+
+    .wallpaper.on{
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* 화면 OFF(초기 검정) 오버레이 */
+    .screen-off{
+      position: absolute;
+      inset: 0;
+      background: #000;
+      opacity: 1;
+      transition: opacity .25s ease;
+      pointer-events: none;
+    }
+    .screen-off.hidden{ opacity: 0; }
+
+    /* 상단 시간/날짜(잠금화면에서 보이게) */
+    .lock-top{
+      position: absolute;
+      top: 26px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      z-index: 2;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(-6px);
+      transition: opacity .25s ease, transform .25s ease;
+      text-shadow: 0 10px 30px rgba(0,0,0,.55);
+    }
+    .lock-top.on{
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .time{
+      font-size: 52px;
+      font-weight: 700;
+      letter-spacing: .5px;
+      line-height: 1;
+    }
+    .date{
+      margin-top: 8px;
+      font-size: 13px;
+      opacity: .9;
+    }
+
+    /* 비밀번호 입력 오버레이(두 번째 클릭) */
+    .passcode{
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 10px;
+      padding: 28px 22px 18px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s ease;
+    }
+    .passcode.on{
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* 블러 + 반투명 */
+    .glass{
+      position: absolute;
+      inset: 0;
+      background: var(--glass);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      z-index: -1;
+    }
+
+    .dots-area{
+      text-align: center;
+      margin-top: 26px;
+    }
+
+    .hint{
+      height: 18px;
+      margin-bottom: 10px;
+      font-size: 12px;
+      color: rgba(255,255,255,.9);
+      opacity: 0;
+      transform: translateY(-4px);
+      transition: opacity .2s ease, transform .2s ease;
+    }
+    .hint.show{
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .dots{
+      display: inline-flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+    }
+    .dot{
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,.9);
+      background: transparent; /* ✅ 처음: 투명 */
+      transition: background .15s ease, transform .15s ease;
+    }
+    .dot.filled{
+      background: rgba(255,255,255,.95); /* ✅ 입력 시: 흰색 채움 */
+      transform: scale(1.05);
+    }
+
+    /* 키패드 */
+    .keypad{
+      align-self: end;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      padding: 10px 6px 6px;
+    }
+    .key{
+      height: 54px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: #fff;
+      font-size: 18px;
+      font-weight: 650;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: transform .05s ease, background .15s ease;
+    }
+    .key:active{
+      transform: scale(.98);
+      background: rgba(255,255,255,.14);
+    }
+    .key.muted{
+      font-size: 12px;
+      font-weight: 700;
+      opacity: .9;
+    }
+
+    /* 지우기(우하단) */
+    .key.delete{
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    /* 흔들림(비번 틀릴 때) */
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-8px); }
+      40% { transform: translateX(8px); }
+      60% { transform: translateX(-6px); }
+      80% { transform: translateX(6px); }
+    }
+    .shake { animation: shake .35s ease; }
+
+    /* 긴급 연락처 모달 */
+    .emergency{
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease;
+    }
+    .emergency.on{
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .emergency .backdrop{
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .sheet{
+      width: 88%;
+      max-height: 82%;
+      border-radius: 18px;
+      background: rgba(12,12,12,.88);
+      border: 1px solid rgba(255,255,255,.14);
+      box-shadow: 0 30px 70px rgba(0,0,0,.55);
+      overflow: hidden;
+      position: relative;
+    }
+    .sheet-header{
+      padding: 14px 14px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .sheet-title{
+      font-size: 14px;
+      font-weight: 850;
+      letter-spacing: .2px;
+      color: #ff3b30;
+    }
+    .sheet-close{
+      width: 28px;
+      height: 28px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: #fff;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+    }
+    .sheet-body{
+      padding: 12px 10px 14px;
+      overflow: auto;
+      max-height: calc(82vh - 52px);
+    }
+    .group{
+      margin: 8px 6px 14px;
+    }
+    .group h4{
+      margin: 0 0 8px;
+      font-size: 12px;
+      opacity: .9;
+      letter-spacing: .2px;
+    }
+    .item{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 10px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.08);
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+    .badge{
+      font-size: 11px;
+      font-weight: 900;
+      padding: 4px 8px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.16);
+    }
+    .badge.safe{ color: #34c759; }
+    .badge.unsafe{ color: #ff3b30; }
+
+    /* 홈 화면(잠금 해제 후) */
+    .home-overlay{
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .25s ease;
+    }
+    .home-overlay.on{ opacity: 1; }
+
+    /* 안내 텍스트(옵션) */
+    .tap-guide{
+      position: absolute;
+      bottom: 18px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 12px;
+      opacity: .85;
+      z-index: 2;
+      pointer-events: none;
+      text-shadow: 0 10px 30px rgba(0,0,0,.55);
+      transition: opacity .2s ease;
+    }
+    .tap-guide.hidden{ opacity: 0; }
+  </style>
+</head>
+
+<body>
+  <div class="stage">
+    <div class="phone" aria-label="phone mockup">
+      <div class="screen" id="screen" role="button" aria-label="screen">
+        <!-- 배경(잠금/홈) -->
+        <img class="wallpaper" id="wpLock" src="lock.jpg" alt="lock wallpaper">
+        <img class="wallpaper" id="wpHome" src="home.jpg" alt="home wallpaper">
+
+        <!-- 초기 화면 OFF -->
+        <div class="screen-off" id="screenOff"></div>
+
+        <!-- 잠금화면 상단 시간/날짜 -->
+        <div class="lock-top" id="lockTop">
+          <div class="time" id="timeText">01:10</div>
+          <div class="date" id="dateText">1월 10일 토요일</div>
+        </div>
+        <div class="tap-guide" id="tapGuide">화면을 클릭</div>
+
+        <!-- 비밀번호 오버레이 -->
+        <div class="passcode" id="passcode">
+          <div class="glass"></div>
+
+          <div class="dots-area" id="dotsArea">
+            <div class="hint" id="hint">힌트: 2^10</div>
+            <div class="dots" aria-label="passcode dots">
+              <span class="dot" id="d0"></span>
+              <span class="dot" id="d1"></span>
+              <span class="dot" id="d2"></span>
+              <span class="dot" id="d3"></span>
+            </div>
+          </div>
+
+          <div class="keypad" id="keypad" aria-label="keypad">
+            <!-- 1~9 -->
+            <button class="key" data-key="1">1</button>
+            <button class="key" data-key="2">2</button>
+            <button class="key" data-key="3">3</button>
+            <button class="key" data-key="4">4</button>
+            <button class="key" data-key="5">5</button>
+            <button class="key" data-key="6">6</button>
+            <button class="key" data-key="7">7</button>
+            <button class="key" data-key="8">8</button>
+            <button class="key" data-key="9">9</button>
+
+            <!-- 하단: 긴급 / 0 / 지우기 -->
+            <button class="key muted" id="btnEmergency">긴급</button>
+            <button class="key" data-key="0">0</button>
+            <button class="key delete" id="btnDelete">⌫</button>
+          </div>
+        </div>
+
+        <!-- 홈 오버레이(필요하면 아이콘/텍스트 얹기) -->
+        <div class="home-overlay" id="homeOverlay"></div>
+
+        <!-- 긴급 연락처 모달 -->
+        <div class="emergency" id="emergencyModal" aria-modal="true" role="dialog">
+          <div class="backdrop" id="emergencyBackdrop"></div>
+          <div class="sheet">
+            <div class="sheet-header">
+              <div class="sheet-title">긴급 연락처</div>
+              <button class="sheet-close" id="emergencyClose" aria-label="close">×</button>
+            </div>
+            <div class="sheet-body" id="emergencyBody">
+              <!-- JS로 채움 -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * 상태:
+     * OFF  -> (클릭) LOCK
+     * LOCK -> (클릭) PASSCODE
+     * PASSCODE -> (1024 입력) HOME
+     */
+    const STATE = { OFF: 0, LOCK: 1, PASSCODE: 2, HOME: 3 };
+    let state = STATE.OFF;
+
+    const screen = document.getElementById('screen');
+    const screenOff = document.getElementById('screenOff');
+    const wpLock = document.getElementById('wpLock');
+    const wpHome = document.getElementById('wpHome');
+    const lockTop = document.getElementById('lockTop');
+    const tapGuide = document.getElementById('tapGuide');
+
+    const passcode = document.getElementById('passcode');
+    const keypad = document.getElementById('keypad');
+    const hint = document.getElementById('hint');
+    const dotsArea = document.getElementById('dotsArea');
+    const dots = [0,1,2,3].map(i => document.getElementById(`d${i}`));
+
+    const btnDelete = document.getElementById('btnDelete');
+    const btnEmergency = document.getElementById('btnEmergency');
+
+    const emergencyModal = document.getElementById('emergencyModal');
+    const emergencyClose = document.getElementById('emergencyClose');
+    const emergencyBackdrop = document.getElementById('emergencyBackdrop');
+    const emergencyBody = document.getElementById('emergencyBody');
+
+    const timeText = document.getElementById('timeText');
+    const dateText = document.getElementById('dateText');
+
+    const HOME_PASS = "1024";
+    let input = [];
+
+    // 시간/날짜 표시
+    const WEEK = ["일요일","월요일","화요일","수요일","목요일","금요일","토요일"];
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function updateClock(){
+      const now = new Date();
+      timeText.textContent = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+      dateText.textContent = `${now.getMonth()+1}월 ${now.getDate()}일 ${WEEK[now.getDay()]}`;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // 긴급 연락처 예시 데이터(원하는대로 바꿔도 됨)
+    const EMERGENCY_DATA = [
+      { group: "ALL", items: [
+        { name: "태평의 남자들", tag: "Unsafe" },
+        { name: "태평의 남자들", tag: "Safe" },
+      ]},
+      { group: "기환석", items: [
+        { name: "아저씨 좀 흔들지 마", tag: "Unsafe" },
+        { name: "아저씨 좀 흔들지 마S", tag: "Safe" },
+      ]},
+      { group: "지해건", items: [
+        { name: "아저씨 좀 봐둬", tag: "Unsafe" },
+        { name: "아저씨 좀 봐둬 S", tag: "Safe" },
+        { name: "나 좀 봐둬", tag: "Safe" },
+        { name: "사사카구미 - 지해건", tag: "Unsafe" },
+        { name: "사사카구미 - 지해건 S", tag: "Safe" },
+      ]},
+    ];
+
+    function renderEmergency(){
+      emergencyBody.innerHTML = "";
+      for(const g of EMERGENCY_DATA){
+        const wrap = document.createElement('div');
+        wrap.className = 'group';
+        const h = document.createElement('h4');
+        h.textContent = g.group;
+        wrap.appendChild(h);
+
+        for(const it of g.items){
+          const row = document.createElement('div');
+          row.className = 'item';
+
+          const left = document.createElement('div');
+          left.textContent = it.name;
+
+          const badge = document.createElement('span');
+          const safe = (it.tag || "").toLowerCase().includes("safe");
+          badge.className = `badge ${safe ? "safe" : "unsafe"}`;
+          badge.textContent = it.tag || (safe ? "Safe" : "Unsafe");
+
+          row.appendChild(left);
+          row.appendChild(badge);
+          wrap.appendChild(row);
+        }
+        emergencyBody.appendChild(wrap);
+      }
+    }
+    renderEmergency();
+
+    function setState(next){
+      state = next;
+
+      if(state === STATE.OFF){
+        screenOff.classList.remove('hidden');
+        wpLock.classList.remove('on');
+        wpHome.classList.remove('on');
+        lockTop.classList.remove('on');
+        tapGuide.classList.remove('hidden');
+        passcode.classList.remove('on');
+        closeEmergency();
+        resetInput(true);
+        return;
+      }
+
+      if(state === STATE.LOCK){
+        screenOff.classList.add('hidden');
+        wpHome.classList.remove('on');
+        wpLock.classList.add('on');
+        lockTop.classList.add('on');
+        tapGuide.classList.remove('hidden');
+        passcode.classList.remove('on');
+        closeEmergency();
+        resetInput(true);
+        return;
+      }
+
+      if(state === STATE.PASSCODE){
+        tapGuide.classList.add('hidden');
+        passcode.classList.add('on');
+        hint.classList.remove('show');
+        resetInput(true);
+        return;
+      }
+
+      if(state === STATE.HOME){
+        passcode.classList.remove('on');
+        lockTop.classList.remove('on');
+        tapGuide.classList.add('hidden');
+        wpLock.classList.remove('on');
+        wpHome.classList.add('on');
+        closeEmergency();
+        resetInput(true);
+        return;
+      }
+    }
+
+    function updateDots(){
+      dots.forEach((d, i) => {
+        d.classList.toggle('filled', i < input.length);
+      });
+    }
+
+    function resetInput(clearHint=false){
+      input = [];
+      updateDots();
+      dotsArea.classList.remove('shake');
+      if(clearHint) hint.classList.remove('show');
+    }
+
+    function wrongPass(){
+      hint.classList.add('show');              // ✅ 힌트 표시
+      dotsArea.classList.remove('shake');
+      void dotsArea.offsetWidth;               // reflow for restart animation
+      dotsArea.classList.add('shake');
+
+      // 잠깐 보여주고 초기화
+      setTimeout(() => {
+        resetInput(false);
+      }, 550);
+    }
+
+    function tryUnlock(){
+      const entered = input.join('');
+      if(entered === HOME_PASS){
+        setState(STATE.HOME);
+      }else{
+        wrongPass();
+      }
+    }
+
+    // 화면 클릭 흐름: OFF -> LOCK -> PASSCODE
+    screen.addEventListener('click', (e) => {
+      // 긴급 모달이 켜져 있으면 화면 클릭으로 상태 전환하지 않게
+      if(emergencyModal.classList.contains('on')) return;
+
+      if(state === STATE.OFF) return setState(STATE.LOCK);
+      if(state === STATE.LOCK) return setState(STATE.PASSCODE);
+      // PASSCODE/HOME에서는 화면 클릭으로 아무것도 안 함(원하면 바꿔도 됨)
+    });
+
+    // 키패드 숫자 입력(이벤트 위임)
+    keypad.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if(!btn) return;
+
+      const key = btn.dataset.key;
+      if(typeof key === 'string'){
+        if(input.length >= 4) return;
+        input.push(key);
+        updateDots();
+
+        if(input.length === 4){
+          tryUnlock();
+        }
+      }
+    });
+
+    // 지우기 버튼
+    btnDelete.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if(input.length === 0) return;
+      input.pop();
+      updateDots();
+    });
+
+    // 긴급 버튼
+    btnEmergency.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openEmergency();
+    });
+
+    function openEmergency(){
+      emergencyModal.classList.add('on');
+    }
+    function closeEmergency(){
+      emergencyModal.classList.remove('on');
+    }
+    emergencyClose.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeEmergency();
+    });
+    emergencyBackdrop.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeEmergency();
+    });
+
+    // 키보드 입력(옵션): 숫자키로도 입력 가능
+    window.addEventListener('keydown', (e) => {
+      if(state !== STATE.PASSCODE) return;
+
+      if(e.key >= '0' && e.key <= '9'){
+        if(input.length >= 4) return;
+        input.push(e.key);
+        updateDots();
+        if(input.length === 4) tryUnlock();
+      }
+      if(e.key === 'Backspace'){
+        if(input.length === 0) return;
+        input.pop();
+        updateDots();
+      }
+      if(e.key === 'Escape'){
+        closeEmergency();
+      }
+    });
+
+    // 시작은 검정 화면
+    setState(STATE.OFF);
+  </script>
+</body>
+</html>

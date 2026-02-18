@@ -1,0 +1,5 @@
+/* Tailwind의 모든 유틸리티/기본 스타일을 불러온다 */
+@import "tailwindcss";
+
+/* 우리가 추가로 쓰는 전역 스타일(선택) */
+html, body, #root { height: 100%; }

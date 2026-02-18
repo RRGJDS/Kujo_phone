@@ -1,0 +1,76 @@
+export type DiaryItem = {
+  id: string;
+  date: string;    
+  content: string;  
+  url: string;      
+};
+
+export const DIARIES: DiaryItem[] = [
+  {
+    id: "d10",
+    date: "2026. 02. 18",
+    content: "아이스크림을 나눠 먹었다.\n아이스크림과 미즈키 중 누가 좋냐고?\n당연히 너지, 미즈키.\n근데 날 올려다보는게 너무,\n...결국 괴롭혔어. 미안해.",
+    url: "https://band.us/band/101470017/post/13"
+  },
+
+  {
+    id: "d9",
+    date: "2026. 02. 15",
+    content: "마들렌, 만들어주고 싶었는데...\n실패해버렸어.\n...말은 못했지만, 조금 슬퍼서 일찍 잤어.",
+    url: "https://posty.pe/u55rpb"
+  },
+
+  {
+    id: "d8",
+    date: "2026. 02. 15",
+    content: "미즈키가 어려지는 꿈을 꿨다.\n...따듯하고 말랑했다.\n어릴때 함께하지 못한게 정말 아쉬워.",
+    url: "https://band.us/band/101470017/post/11"
+  },
+
+  {
+    id: "d7",
+    date: "2026. 02. 14",
+    content: "미즈키가 초콜릿을 만들어줬다.\n다시 고백하는게 정말 귀여웠다.\n초콜릿도 정말 맛있었어.",
+    url: "https://band.us/band/101470017/post/10"
+  },
+
+  {
+    id: "d6",
+    date: "2026. 02. 11",
+    content: "같이 단풍 구경을 갔다.\n단풍이 예쁘다길래 고개를 끄덕였다.\n사실 단풍말고 널 보고 있었어.",
+    url: "https://band.us/band/101470017/post/9"
+  },
+
+  {
+    id: "d5",
+    date: "2026. 02. 10",
+    content: "우리의 만남을 정리했다.\n이거 조금 부끄럽네.",
+    url: "https://posty.pe/aiqz6e"
+  },
+
+  {
+    id: "d4",
+    date: "2026. 02. 08",
+    content: "커플 목도리를 맞췄다.\n엄청 커서 둘이 둘러도 넉넉해.\n...미즈키 향 좋았지.",
+    url: "https://band.us/band/101470017/post/7"
+  },
+
+  {
+    id: "d1",
+    date: "2026. 02. 05",
+    content: "미즈키가 감기에 걸렸다.\n그런데도 해버렸어.\n게다가 보건실이었는데....",
+    url: "https://band.us/band/101470017/post/6"
+  },
+  {
+    id: "d2",
+    date: "2026. 02. 04",
+    content: "사키쨩이랑 사진을 찍었다.\n갸루피스라는건 신기하네.",
+    url: "https://band.us/band/101470017/post/5"
+  },
+  {
+    id: "d3",
+    date: "2026. 02. 03",
+    content: "미즈키에게 고백을 받았다.\n...나도 네가 좋아.",
+    url: "https://posty.pe/35fvsd"
+  }
+];
