@@ -7,6 +7,20 @@ export type DiaryItem = {
 
 export const DIARIES: DiaryItem[] = [
   {
+    id: "d12",
+    date: "2026. 02. 19",
+    content: "미즈키와 데이트했다.\n놀리는게 점점 재밌어져서 곤란하다.\n사랑을 담아 빵야~\n제대로 명중했지?ψ(｀∇´)ψ",
+    url: "https://band.us/band/101470017/post/15"
+  },
+
+  {
+    id: "d11",
+    date: "2026. 02. 19",
+    content: "휴대폰을 잃어버렸다.\n10분만에 찾았지만w\n바로 사진 백업했다.",
+    url: "https://band.us/band/101470017/post/14"
+  },
+
+  {
     id: "d10",
     date: "2026. 02. 18",
     content: "아이스크림을 나눠 먹었다.\n아이스크림과 미즈키 중 누가 좋냐고?\n당연히 너지, 미즈키.\n근데 날 올려다보는게 너무,\n...결국 괴롭혔어. 미안해.",
@@ -16,7 +30,7 @@ export const DIARIES: DiaryItem[] = [
   {
     id: "d9",
     date: "2026. 02. 15",
-    content: "마들렌, 만들어주고 싶었는데...\n실패해버렸어.\n...말은 못했지만, 조금 슬퍼서 일찍 잤어.",
+    content: "마들렌, 만들어주고 싶었는데...\n실패해버렸어.\n말은 못했지만 조금 슬퍼서 일찍 잤어(´。＿。｀).",
     url: "https://posty.pe/u55rpb"
   },
 
