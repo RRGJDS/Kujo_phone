@@ -7,6 +7,13 @@ export type DiaryItem = {
 
 export const DIARIES: DiaryItem[] = [
   {
+    id: "d13",
+    date: "2026. 02. 20",
+    content: "미즈키가 메이드복을 입었다.\n...메이드, 뽑던가?\n집사장님한테 물어봐야겠다.",
+    url: "https://band.us/band/101470017/post/15"
+  },
+
+  {
     id: "d12",
     date: "2026. 02. 19",
     content: "미즈키와 데이트했다.\n놀리는게 점점 재밌어져서 곤란하다.\n사랑을 담아 빵야~\n제대로 명중했지?ψ(｀∇´)ψ",
