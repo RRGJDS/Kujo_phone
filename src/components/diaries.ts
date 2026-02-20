@@ -10,7 +10,7 @@ export const DIARIES: DiaryItem[] = [
     id: "d13",
     date: "2026. 02. 20",
     content: "미즈키가 메이드복을 입었다.\n...메이드, 뽑던가?\n집사장님한테 물어봐야겠다.",
-    url: "https://band.us/band/101470017/post/15"
+    url: "https://band.us/band/101466405/post/61"
   },
 
   {
