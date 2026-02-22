@@ -7,6 +7,20 @@ export type DiaryItem = {
 
 export const DIARIES: DiaryItem[] = [
   {
+    id: "d15",
+    date: "2026. 02. 22",
+    content: "선물 받았다!\n미즈키가 직접 만들어줬어.\n쿠키도, 키링도 전부 귀여웠다.",
+    url: "https://x.com/OvO_OvvO/status/2025582270837625270"
+  },
+  
+  {
+    id: "d14",
+    date: "2026. 02. 21",
+    content: "처음으로 바느질을 해봤다.\n겨우 완성은 했지만, 너무 어려웠다.\n바늘에 찔린 곳이 아직도 아프다...",
+    url: "https://x.com/makssu_0/status/2025532703870005302"
+  },
+
+  {
     id: "d13",
     date: "2026. 02. 20",
     content: "미즈키가 메이드복을 입었다.\n...메이드, 뽑던가?\n집사장님한테 물어봐야겠다.",
