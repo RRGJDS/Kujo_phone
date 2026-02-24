@@ -7,6 +7,25 @@ export type DiaryItem = {
 
 export const DIARIES: DiaryItem[] = [
   {
+    id: "d18",
+    date: "2026. 02. 24",
+    content: "오늘은 언제나와 같은 일상!\n같은 샴푸인데\n미즈키 향이 더 좋다.",
+    url: "https://band.us/band/101470017/post/17"
+  },
+  {
+    id: "d17",
+    date: "2026. 02. 24",
+    content: "미즈키한테 맞았다.\n빙고때문에 어쩔 수 없지만...\n정말 정말 아팠다.\n근데 괜히 짜증냈나...\n조금 미안했다.",
+    url: "https://band.us/band/101470017/post/16"
+  },
+  {
+    id: "d16",
+    date: "2026. 02. 23",
+    content: "축제에서 타코야키를 먹었다.\n조금 뜨거웠지만, 정말 맛있었다.",
+    url: "https://band.us/band/101466405/post/91"
+  },
+
+  {
     id: "d15",
     date: "2026. 02. 22",
     content: "선물 받았다!\n미즈키가 직접 만들어줬어.\n쿠키도, 키링도 전부 귀여웠다.",
