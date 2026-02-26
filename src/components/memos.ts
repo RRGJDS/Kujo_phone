@@ -6,6 +6,11 @@ export type MemoItem = {
 
 export const MEMOS: MemoItem[] = [
   {
+    id: "m20",
+    date: "2026. 02. 26",
+    text: "- www.초보자운동추천\n- www.등운동\n- www.체력기르는법"
+  },
+  {
     id: "m19",
     date: "2026. 02. 24",
     text: "- 향수_공방.map\n- 맞춤_향수.map"
