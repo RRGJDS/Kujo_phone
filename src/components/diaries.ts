@@ -10,7 +10,7 @@ export const DIARIES: DiaryItem[] = [
     id: "d19",
     date: "2026. 02. 26",
     content: "...오랜만에 늦잠 잤다.\n파스를 목에 붙였는데,\n미즈키 목 절반 이상이 파스였다.\n...다음부터는 조금만 물어야겠다.",
-    url: "https://band.us/band/101470017/post/17"
+    url: "https://band.us/band/101470017/post/19"
   },
   {
     id: "d18",

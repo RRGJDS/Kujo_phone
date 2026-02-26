@@ -8,7 +8,7 @@ export const MEMOS: MemoItem[] = [
   {
     id: "m20",
     date: "2026. 02. 26",
-    text: "- www.초보자운동추천\n- www.등운동\n- www.체력기르는법"
+    text: "- www.초보자운동추천.jp\n- www.등운동.jp\n- www.체력기르는법.jp"
   },
   {
     id: "m19",
