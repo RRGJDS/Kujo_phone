@@ -6,6 +6,16 @@ export type MemoItem = {
 
 export const MEMOS: MemoItem[] = [
   {
+    id: "m22",
+    date: "2026. 03. 02",
+    text: ".........\n베개, 바꿀까."
+  },
+  {
+    id: "m21",
+    date: "2026. 03. 02",
+    text: "대형 바구니... 살까.\n근데 미즈키 품이 더 좋은데.\n...미즈키 옷 넣어두고, 혼자 있을 때마다,\n- shop.바구니.jp"
+  },
+  {
     id: "m20",
     date: "2026. 02. 26",
     text: "- www.초보자운동추천.jp\n- www.등운동.jp\n- www.체력기르는법.jp"
