@@ -7,6 +7,30 @@ export type DiaryItem = {
 
 export const DIARIES: DiaryItem[] = [
   {
+    id: "d28",
+    date: "2026. 05. 01",
+    content: "좁은 곳에 미즈키랑 같이 갇혔다.\n...나쁘지 않았다.\n오히려...",
+    url: "https://band.us/band/101470017/post/28"
+  },
+  {
+    id: "d27",
+    date: "2026. 04. 10",
+    content: "미즈키가 고개 돌리길래 찍었는데\n생각보다 더 잘 나왔다.\n휴대폰 뒤에 붙이고 다닐까?",
+    url: "https://band.us/band/101470017/post/27"
+  },
+  {
+    id: "d26",
+    date: "2026. 04. 01",
+    content: "미즈키가 헤어지자고 하는 꿈을 꿨다.\n꿈이라는 건 알지만...\n오늘은 미즈키랑 같이 자야지.",
+    url: "https://band.us/band/101470017/post/26"
+  },
+  {
+    id: "d25",
+    date: "2026. 03. 22",
+    content: "가끔은 쿠죠가,\n...\n결국 감기에 걸렸다.",
+    url: "https://band.us/band/101470017/post/25"
+  },
+  {
     id: "d24",
     date: "2026. 03. 18",
     content: "처음으로 화려하게 입어봤다.\n조금 어색했지만, 나쁘지 않은 경험이었다.\n다음에는 옷을 바꿔 입어볼까?",

@@ -451,7 +451,7 @@ function GalleryApp({
         }}
       >
         {images.length === 0 ? (
-          <div className="p-4">
+          <div className="p-4"> P
             <div className="text-xs text-black/55 p-3 rounded-xl border border-black/10 bg-black/[0.03]">
               <div className="font-semibold mb-1">사진이 비어있어요</div>
               <div className="leading-relaxed">
